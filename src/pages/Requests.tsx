@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box, Button, Stack, Typography, Snackbar, Alert } from "@mui/material";
 import { useI18n } from "../context/I18nContext";
 import { useAuth } from "../context/AuthContext";
-import { collection, doc, onSnapshot, query, updateDoc, where, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useEffect, useState } from "react";
-import { createPeerJSCall } from "../services/callService";
+import { startCall } from "../services/callService";
+import { createSessionConfirmedNotification, createSessionCancelledNotification } from "../services/notificationService";
 
 interface SItem {
   id: string;
@@ -41,19 +43,48 @@ function Requests() {
   const updateStatus = async (id: string, status: "confirmed" | "cancelled") => {
     setSavingId(id);
     try {
-      // Update session status
-      await updateDoc(doc(db, "sessions", id), { status });
+      // Get session data first to get user_id
+      const sessionDoc = await doc(db, "sessions", id);
+      const sessionSnap = await getDoc(sessionDoc);
+      const sessionData = sessionSnap.data();
       
-      // If confirming, create PeerJS call
+      if (!sessionData) {
+        throw new Error('Session not found');
+      }
+
+      // Update session status
+      await updateDoc(sessionDoc, { status });
+      
+      // Create notifications and call records based on status
       if (status === "confirmed") {
         try {
-          // Generate a simple peer ID for the caller (user)
-          const callerPeerId = `peer_${user!.uid}_${Date.now()}`;
-          await createPeerJSCall(id, user!.uid, callerPeerId);
-          console.log('PeerJS call created for session:', id);
-        } catch (callError) {
-          console.error('Failed to create PeerJS call:', callError);
-          // Don't fail the whole operation if call creation fails
+          // Create call record for the session
+          await startCall(id, sessionData.user_id, user!.uid);
+          console.log('Call record created for session:', id);
+          
+          // Create notification for the user
+          await createSessionConfirmedNotification(
+            sessionData.user_id, 
+            id, 
+            new Date(sessionData.scheduled_time)
+          );
+          console.log('Session confirmed notification created');
+        } catch (error) {
+          console.error('Failed to create call record or notification:', error);
+          // Don't fail the whole operation if these fail
+        }
+      } else if (status === "cancelled") {
+        try {
+          // Create cancellation notification for the user
+          await createSessionCancelledNotification(
+            sessionData.user_id, 
+            id, 
+            'Session was cancelled by the interpreter'
+          );
+          console.log('Session cancelled notification created');
+        } catch (error) {
+          console.error('Failed to create cancellation notification:', error);
+          // Don't fail the whole operation if this fails
         }
       }
       

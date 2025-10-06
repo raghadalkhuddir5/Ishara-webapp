@@ -252,3 +252,48 @@ exports.endCall = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'Failed to end call');
   }
 });
+
+// Send FCM notification using Admin SDK
+exports.sendFCMNotification = functions.https.onCall(async (data, context) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { token, title, body, data: notificationData } = data;
+
+    if (!token || !title || !body) {
+      throw new functions.https.HttpsError('invalid-argument', 'token, title, and body are required');
+    }
+
+    // Send notification using Firebase Admin SDK
+    const message = {
+      token: token,
+      notification: {
+        title: title,
+        body: body
+      },
+      data: notificationData || {},
+      webpush: {
+        fcmOptions: {
+          link: '/'
+        }
+      }
+    };
+
+    const response = await admin.messaging().send(message);
+    console.log('Successfully sent message:', response);
+
+    return { success: true, messageId: response };
+
+  } catch (error) {
+    console.error('Error sending FCM notification:', error);
+    
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    
+    throw new functions.https.HttpsError('internal', 'Failed to send notification');
+  }
+});

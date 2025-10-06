@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { Box, Stack, Typography, Chip, Button, Snackbar, Alert } from "@mui/material";
 import { Link } from "react-router-dom";
@@ -54,7 +55,7 @@ function MySessions() {
       setNameMap((prev) => ({ ...prev, ...entries }));
     };
     if (items.length) void loadNames();
-  }, [items]);
+  }, [items, nameMap]);
 
   const statusLabel = (s: SItem["status"]) => {
     if (s === "requested") return t("status_requested");

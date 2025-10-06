@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box, Button, Radio, RadioGroup, FormControlLabel, Stack, TextField, Typography, Snackbar, Alert } from "@mui/material";
 import { useI18n } from "../context/I18nContext";
 import { useState } from "react";
-import { collection, doc, getDocs, addDoc, getDoc } from "firebase/firestore";
+import { collection, doc, getDocs, addDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 
@@ -39,41 +40,69 @@ function BookSession() {
       alert("Please choose a future date/time");
       return;
     }
-    const qSnap = await getDocs(collection(db, "users"));
-    const interpretersList = qSnap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as any) }))
-      .filter((u) => u.role === "interpreter");
+    // Query interpreters collection directly
+    const interpretersSnap = await getDocs(collection(db, "interpreters"));
     const result: Array<{ id: string; full_name?: string }> = [];
-    for (const i of interpretersList) {
-      const cfgSnap = await getDoc(doc(db, "interpreters", i.id));
-      if (!cfgSnap.exists()) continue;
-      const cfg = cfgSnap.data() as { availability?: { isAlwaysAvailable: boolean; days: Record<string, { morning: boolean; evening: boolean }> } };
-      if (!cfg.availability) continue;
-      if (isAvailableAt(cfg.availability, target)) result.push({ id: i.id, full_name: i.full_name });
+    
+    for (const interpreterDoc of interpretersSnap.docs) {
+      const interpreterData = interpreterDoc.data() as any;
+      const availability = interpreterData.availability;
+      
+      if (!availability) continue;
+      
+      if (isAvailableAt(availability, target)) {
+        // Get user data for full_name
+        const userSnap = await getDoc(doc(db, "users", interpreterDoc.id));
+        const userData = userSnap.exists() ? userSnap.data() as any : {};
+        
+        result.push({ 
+          id: interpreterDoc.id, 
+          full_name: userData.full_name || interpreterData.full_name || interpreterDoc.id 
+        });
+      }
     }
     setMatchingInterpreters(result);
   };
 
   const requestSession = async (interpreterId: string) => {
-    if (!user) return;
+    if (!user) {
+      setMessage("Please log in to book a session");
+      setOpen(true);
+      return;
+    }
+    
+    if (!interpreterId) {
+      setMessage("Please select an interpreter");
+      setOpen(true);
+      return;
+    }
+    
     setBooking(true);
     try {
       const now = new Date();
       const scheduled = mode === "immediate" ? now : (date && time ? new Date(`${date}T${time}:00`) : now);
+      
       if (scheduled < now) {
         setMessage("Please choose a future date/time");
         setOpen(true);
         return;
       }
+      
+      if (mode === "scheduled" && (!date || !time)) {
+        setMessage("Please select both date and time for scheduled sessions");
+        setOpen(true);
+        return;
+      }
+      
       const scheduledTime = scheduled.toISOString();
       await addDoc(collection(db, "sessions"), {
-        session_id: "", // Will be auto-generated
         user_id: user.uid,
         interpreter_id: interpreterId,
         scheduled_time: scheduledTime,
         status: "requested",
         duration: 0,
-        created_at: new Date(),
+        created_at: serverTimestamp(),
+        reminderSent: false
       });
       setMessage("Session reserved successfully! Check 'My Sessions' for updates.");
       setOpen(true);

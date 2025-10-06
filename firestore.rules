@@ -1,46 +1,95 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write their own user document
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Interpreters can read and write their own interpreter document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isSessionParticipant(sessionId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/sessions/$(sessionId)) &&
+        (get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid ||
+         get(/databases/$(database)/documents/sessions/$(sessionId)).data.interpreter_id == request.auth.uid);
+    }
+    
+    // Users: users can read and write their own user document, and read other users for finding interpreters
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Interpreters: interpreters can read and write their own interpreter document, others can read for finding interpreters
     match /interpreters/{interpreterId} {
-      allow read, write: if request.auth != null && request.auth.uid == interpreterId;
+      allow read: if isAuthenticated();
+      allow write: if isOwner(interpreterId);
     }
     
     // Sessions: users can read sessions they're part of, interpreters can read/write sessions they're assigned to
     match /sessions/{sessionId} {
-      allow read: if request.auth != null && 
+      allow read: if isAuthenticated() && 
         (resource.data.user_id == request.auth.uid || 
          resource.data.interpreter_id == request.auth.uid);
-      allow write: if request.auth != null && 
+      allow write: if isAuthenticated() && 
         (resource.data.user_id == request.auth.uid || 
          resource.data.interpreter_id == request.auth.uid);
-      allow create: if request.auth != null && 
+      allow create: if isAuthenticated() && 
         (request.resource.data.user_id == request.auth.uid || 
          request.resource.data.interpreter_id == request.auth.uid);
     }
     
-    // Calls: WebRTC signaling - only session participants can read/write call data
+    // Calls: session recordings and call metadata - allow queries for session participants
+    match /calls/{callId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || 
+         resource.data.interpreter_id == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.user_id == request.auth.uid || 
+         request.resource.data.interpreter_id == request.auth.uid);
+    }
+    
+    // Ratings: users can read ratings they gave or received, can create ratings for their sessions
+    match /ratings/{ratingId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.rater_id == request.auth.uid || 
+         resource.data.rated_id == request.auth.uid);
+      allow write: if isAuthenticated() && 
+        (resource.data.rater_id == request.auth.uid || 
+         request.resource.data.rater_id == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        request.resource.data.rater_id == request.auth.uid;
+    }
+    
+    // Notifications: users can only read their own notifications, system can create notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || 
+         request.auth.uid == resource.data.user_id);
+      allow write: if isAuthenticated() && 
+        resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated();
+    }
+    
+    // Legacy CALLS collection (for WebRTC signaling) - keep for backward compatibility
     match /CALLS/{sessionId} {
       function isParticipant() {
-        // Check if user is a participant in the session
-        return exists(/databases/$(database)/documents/sessions/$(sessionId)) &&
-          (get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid ||
-           get(/databases/$(database)/documents/sessions/$(sessionId)).data.interpreter_id == request.auth.uid);
+        return isSessionParticipant(sessionId);
       }
 
-      allow read, write: if request.auth != null && isParticipant();
+      allow read, write: if isAuthenticated() && isParticipant();
 
       // ICE candidates subcollections
       match /callerCandidates/{candidateId} {
-        allow read, write: if request.auth != null && isParticipant();
+        allow read, write: if isAuthenticated() && isParticipant();
       }
       match /calleeCandidates/{candidateId} {
-        allow read, write: if request.auth != null && isParticipant();
+        allow read, write: if isAuthenticated() && isParticipant();
       }
     }
     

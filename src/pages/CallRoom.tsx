@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box, Typography, Button, Alert, CircularProgress } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import { Link } from "react-router-dom";

@@ -1,69 +1,178 @@
-# React + TypeScript + Vite
+# Ishara - Sign Language Interpretation Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A real-time video calling platform that connects deaf/mute users with sign language interpreters.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🔐 Authentication & User Management
+- Firebase Authentication with email/password
+- Role-based access (Deaf/Mute users and Interpreters)
+- User profiles and availability management
 
-## Expanding the ESLint configuration
+### 📞 Real-time Video Calling
+- PeerJS-powered video calls with audio/video
+- Screen sharing capabilities
+- Call quality indicators
+- Mute/unmute and camera controls
+- Call recording and session management
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 🔔 Notification System
+- Firebase Cloud Messaging (FCM) integration
+- Real-time notifications for session requests
+- In-app notification center
+- Role-specific notification filtering
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 📅 Session Management
+- Book immediate or scheduled sessions
+- Session status tracking (requested, confirmed, cancelled)
+- Session history and ratings
+- Interpreter availability management
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+### 🌐 Internationalization
+- Multi-language support
+- Context-aware translations
+- Dynamic language switching
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech Stack
+
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI Framework**: Material-UI (MUI)
+- **Backend**: Firebase (Firestore, Authentication, Cloud Messaging)
+- **Video Calling**: PeerJS
+- **State Management**: React Context API
+- **Styling**: Material-UI + CSS
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── AppLayout.tsx   # Main app layout
+│   ├── VideoCall.tsx   # Video calling interface
+│   ├── NotificationCenter.tsx # Notification management
+│   └── ...
+├── pages/              # Page components
+│   ├── DashboardDeafMute.tsx
+│   ├── DashboardInterpreter.tsx
+│   ├── BookSession.tsx
+│   └── ...
+├── services/           # Business logic and API calls
+│   ├── peerjsService.ts # Video calling logic
+│   ├── fcmService.ts   # Push notifications
+│   ├── notificationService.ts # Notification management
+│   └── ...
+├── context/            # React Context providers
+│   ├── AuthContext.tsx # Authentication state
+│   └── I18nContext.tsx # Internationalization
+└── types/              # TypeScript type definitions
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
+- Node.js 18+ 
+- Firebase project with Firestore, Authentication, and Cloud Messaging enabled
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd ishara-web
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure Firebase**
+   - Update `src/firebase.ts` with your Firebase config
+   - Deploy Firestore security rules: `firebase deploy --only firestore:rules`
+   - Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Open your browser**
+   Navigate to `http://localhost:5173`
+
+## Firebase Configuration
+
+### Required Services
+- **Authentication**: Email/password authentication
+- **Firestore**: Real-time database for sessions, notifications, and user data
+- **Cloud Messaging**: Push notifications
+- **Storage**: (Optional) For call recordings
+
+### Security Rules
+The project includes Firestore security rules that ensure:
+- Users can only access their own data
+- Role-based access control
+- Secure session and notification management
+
+### Indexes
+Required Firestore composite indexes are defined in `firestore.indexes.json`:
+- Session queries by user/interpreter ID and status
+- Notification queries by user ID and timestamp
+- Call history queries
+
+## Usage
+
+### For Deaf/Mute Users
+1. Sign up and create a profile
+2. Browse available interpreters
+3. Book immediate or scheduled sessions
+4. Join video calls for interpretation
+5. Rate sessions after completion
+
+### For Interpreters
+1. Sign up and set availability
+2. Receive session requests via notifications
+3. Accept/decline session requests
+4. Join video calls to provide interpretation
+5. Manage session history and ratings
+
+## Development
+
+### Available Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Code Style
+- TypeScript strict mode enabled
+- ESLint with React and TypeScript rules
+- Material-UI for consistent UI components
+- Functional components with hooks
+
+## Deployment
+
+### Build for Production
+```bash
+npm run build
 ```
+
+### Deploy to Firebase Hosting
+```bash
+firebase deploy
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For support and questions, please contact the development team or create an issue in the repository.

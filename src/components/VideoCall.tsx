@@ -1,27 +1,25 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useRef, useState } from "react";
 import { Box, Typography, Button, Stack, IconButton, Paper, Alert, CircularProgress } from "@mui/material";
 import { Mic, MicOff, Videocam, VideocamOff, CallEnd, ScreenShare } from "@mui/icons-material";
-import { useI18n } from "../context/I18nContext";
-import { useAuth } from "../context/AuthContext";
 import { 
   initPeer, 
   setupPeerListeners, 
   startLocalStream, 
   callPeer, 
-  endCall, 
   toggleMicrophone, 
   toggleCamera, 
   startScreenShare, 
   stopScreenShare,
   restartCamera,
-  getCurrentPeerId,
   getLocalStream,
-  getRemoteStream,
   isPeerConnected,
   cleanup
 } from "../services/peerjsService";
-import { getCallData, updateCalleePeerId, endPeerJSCall, createPeerJSCall } from "../services/callService";
-import { onSnapshot, doc } from "firebase/firestore";
+import { getCallBySessionId, endCall as endCallRecord } from "../services/callService";
+import { onSnapshot, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface VideoCallProps {
@@ -42,6 +40,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [peerId, setPeerId] = useState<string | null>(null);
   const [remotePeerId, setRemotePeerId] = useState<string | null>(null);
+  const [callData, setCallData] = useState<any>(null);
 
   useEffect(() => {
     const initializeCall = async () => {
@@ -60,15 +59,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         const localStream = await startLocalStream(true, true);
         console.log('Local stream obtained:', localStream);
         
-        // Set up local video element with a small delay to ensure DOM is ready
-        setTimeout(() => {
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
-            console.log('Local video element connected to stream');
-          } else {
-            console.error('Local video ref is null');
-          }
-        }, 100);
+        // Do not attach to local video here, because while loading, the
+        // video element isn't mounted yet. The effect below will attach the
+        // stream once the element exists (after loading UI is gone).
 
         // Set up peer event listeners
         setupPeerListeners(
@@ -91,66 +84,52 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           }
         );
 
-        // Get call data from Firestore
-        let callData = await getCallData(sessionId);
-        
+        // Get call data for history/metrics (separate collection)
+        const callDataResult = await getCallBySessionId(sessionId);
+        setCallData(callDataResult);
+
+        // Use a lightweight signaling doc keyed by sessionId to exchange peer IDs
+        const signalingRef = doc(db, 'CALLS', sessionId);
+
         // Determine caller vs callee based on role
         const isCaller = role === "deaf_mute";
 
         if (isCaller) {
           console.log('Calling as caller...');
-          
-          // If call document doesn't exist, create it
-          if (!callData) {
-            await createPeerJSCall(sessionId, currentUid, myPeerId);
-            callData = await getCallData(sessionId);
-          }
-          
-          // Caller should call the interpreter's peer ID
-          if (callData?.calleePeerId) {
-            setRemotePeerId(callData.calleePeerId);
-            await callPeer(callData.calleePeerId, (stream: MediaStream) => {
-              console.log('Received remote stream as caller');
-              if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = stream;
+
+          // Publish caller peer ID
+          await setDoc(signalingRef, { callerPeerId: myPeerId, updated_at: Date.now() }, { merge: true });
+
+          console.log('Waiting for interpreter to join...');
+          // Listen for callee peer ID then initiate call
+          const unsubscribe = onSnapshot(signalingRef, async (snap) => {
+            if (snap.exists()) {
+              const data: any = snap.data();
+              if (data.calleePeerId && !isJoined) {
+                console.log('Interpreter joined, initiating call...');
+                setRemotePeerId(data.calleePeerId);
+                await callPeer(data.calleePeerId, (stream: MediaStream) => {
+                  console.log('Received remote stream as caller');
+                  if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = stream;
+                  }
+                  setIsJoined(true);
+                });
+                unsubscribe();
               }
-              setIsJoined(true);
-            });
-          } else {
-            console.log('Waiting for interpreter to join...');
-            // Set up listener to watch for interpreter joining
-            const callDocRef = doc(db, 'CALLS', sessionId);
-            const unsubscribe = onSnapshot(callDocRef, async (doc) => {
-              if (doc.exists()) {
-                const callData = doc.data();
-                if (callData.calleePeerId && !isJoined) {
-                  console.log('Interpreter joined, initiating call...');
-                  setRemotePeerId(callData.calleePeerId);
-                  await callPeer(callData.calleePeerId, (stream: MediaStream) => {
-                    console.log('Received remote stream as caller');
-                    if (remoteVideoRef.current) {
-                      remoteVideoRef.current.srcObject = stream;
-                    }
-                    setIsJoined(true);
-                  });
-                  unsubscribe(); // Stop listening once call is initiated
-                }
-              }
-            });
-            
-            // Clean up listener on component unmount
-            return () => unsubscribe();
-          }
+            }
+          });
+
+          // Clean up listener on component unmount
+          return () => unsubscribe();
         } else {
           console.log('Waiting as callee...');
-          
-          // Callee should update their peer ID in Firestore
-          await updateCalleePeerId(sessionId, currentUid, myPeerId);
-          
-          // Get updated call data
-          callData = await getCallData(sessionId);
-          setRemotePeerId(callData?.callerPeerId || 'unknown');
-          // The call will be handled by the peer event listeners
+
+          // Publish callee peer ID and wait for incoming call
+          await setDoc(signalingRef, { calleePeerId: myPeerId, updated_at: Date.now() }, { merge: true });
+
+          console.log('Callee peer ID published; waiting for incoming call');
+          // No further action: setupPeerListeners will handle incoming call
         }
 
         console.log('PeerJS call initialized successfully');
@@ -234,17 +213,34 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
   };
 
   const handleEndCall = async () => {
+    console.log('🔴 End call button clicked');
     try {
-      await endCall();
-      await endPeerJSCall(sessionId);
+      console.log('📞 Call data:', callData);
+      
+      // End the call record in database
+      if (callData?.call_id) {
+        console.log('💾 Ending call record:', callData.call_id);
+        await endCallRecord(callData.call_id);
+        console.log('✅ Call record ended successfully');
+      } else {
+        console.log('⚠️ No call_id found in callData');
+      }
+      
+      // Clean up PeerJS connection
+      console.log('🧹 Cleaning up PeerJS connection');
+      cleanup();
       setIsJoined(false);
+      console.log('✅ PeerJS cleanup completed');
       
       // Call the onCallEnd callback if provided
       if (onCallEnd) {
+        console.log('📞 Calling onCallEnd callback');
         onCallEnd();
       }
+      
+      console.log('🎉 Call ended successfully');
     } catch (error) {
-      console.error('Failed to end call:', error);
+      console.error('💥 Failed to end call:', error);
     }
   };
 
