@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
 import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
+import { isSessionExpired } from "../utils/sessionUtils";
 
 interface SItem {
   id: string;
@@ -102,16 +103,28 @@ function MySessions() {
                   {cancellingId === s.id ? "Cancelling..." : "Cancel"}
                 </Button>
               )}
-              {s.status === "confirmed" && (
-                <Button 
-                  component={Link} 
-                  to={`/call/${s.id}`} 
-                  variant="contained"
-                  color="primary"
-                >
-                  {t("join_call")}
-                </Button>
-              )}
+              {s.status === "confirmed" && (() => {
+                // Check if session is expired (past scheduled time)
+                const expired = isSessionExpired(s.scheduled_time);
+                
+                return !expired ? (
+                  <Button 
+                    component={Link} 
+                    to={`/call/${s.id}`} 
+                    variant="contained"
+                    color="primary"
+                  >
+                    {t("join_call")}
+                  </Button>
+                ) : (
+                  <Chip 
+                    label="Expired" 
+                    color="error" 
+                    variant="outlined"
+                    size="small"
+                  />
+                );
+              })()}
             </Stack>
           </Stack>
         ))}

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import VideoCall from "../components/VideoCall";
+import { isSessionExpired } from "../utils/sessionUtils";
 
 export default function CallRoom() {
   const { sessionId } = useParams();
@@ -45,6 +46,12 @@ export default function CallRoom() {
         // Check if session is confirmed
         if (session.status !== 'confirmed') {
           setError("Session must be confirmed to start video call");
+          return;
+        }
+        
+        // Check if session is expired (past scheduled time)
+        if (isSessionExpired(session.scheduled_time)) {
+          setError("This session has expired. Sessions can only be joined within 2 hours of the scheduled time.");
           return;
         }
         

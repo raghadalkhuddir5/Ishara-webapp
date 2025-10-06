@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase";
+import { isSessionExpired } from "../utils/sessionUtils";
 
 interface SItem {
   id: string;
@@ -65,16 +66,28 @@ function InterpreterSessions() {
             <Typography sx={{ minWidth: 160 }}>{nameMap[s.user_id] || s.user_id}</Typography>
             <Box sx={{ flexGrow: 1 }} />
             <Chip label={s.status} color={s.status === "confirmed" ? "success" : "default"} />
-            {s.status === "confirmed" && (
-              <Button 
-                component={Link} 
-                to={`/call/${s.id}`} 
-                variant="contained"
-                color="primary"
-              >
-                {t("join_call")}
-              </Button>
-            )}
+            {s.status === "confirmed" && (() => {
+              // Check if session is expired (past scheduled time)
+              const expired = isSessionExpired(s.scheduled_time);
+              
+              return !expired ? (
+                <Button 
+                  component={Link} 
+                  to={`/call/${s.id}`} 
+                  variant="contained"
+                  color="primary"
+                >
+                  {t("join_call")}
+                </Button>
+              ) : (
+                <Chip 
+                  label="Expired" 
+                  color="error" 
+                  variant="outlined"
+                  size="small"
+                />
+              );
+            })()}
           </Stack>
         ))}
       </Stack>
