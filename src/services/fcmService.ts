@@ -72,8 +72,7 @@ export const sendPushNotification = async (payload: NotificationPayload): Promis
       console.log('Browser notification shown successfully');
     }
     
-    // The in-app notification will be created by the notification monitor
-    // This ensures the notification appears in the UI even if browser notifications are blocked
+    
     console.log('In-app notification will be created by notification monitor');
     return true;
   } catch (error) {

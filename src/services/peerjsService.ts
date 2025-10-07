@@ -9,18 +9,27 @@ let localStream: MediaStream | null = null;
 let remoteStream: MediaStream | null = null;
 let isConnected = false;
 
-// Initialize PeerJS peer
-export const initPeer = async (peerId?: string): Promise<string> => {
+// Initialize PeerJS peer with explicit peerId (deterministic per role)
+export const initPeer = async (peerId: string): Promise<string> => {
   try {
-    console.log('Initializing PeerJS peer...');
+    console.log('Initializing PeerJS peer with ID:', peerId);
     
-    if (peer && peer.id) {
-      console.log('Peer already initialized with ID:', peer.id);
+    // If peer already exists with same id, reuse it
+    if (peer && peer.id === peerId) {
+      console.log('Peer already initialized with ID:', peerId);
       return peer.id;
     }
     
-    // Create new peer instance with default configuration (no custom server)
-    peer = peerId ? new Peer(peerId) : new Peer();
+    // Destroy existing peer if it exists
+    if (peer) {
+      console.log('Destroying existing peer for new initialization');
+      peer.destroy();
+      peer = null;
+      currentPeerId = null;
+    }
+    
+    // Create new peer instance using provided peerId
+    peer = new Peer(peerId);
     
     return new Promise((resolve, reject) => {
       peer!.on('open', (id: string) => {
@@ -50,7 +59,8 @@ export const initPeer = async (peerId?: string): Promise<string> => {
 export const setupPeerListeners = (
   onRemoteStream: (stream: MediaStream) => void,
   onDataReceived: (data: unknown) => void,
-  onConnectionClosed: () => void
+  onConnectionClosed: () => void,
+  onRemotePeerId?: (peerId: string) => void
 ): void => {
   if (!peer) {
     throw new Error('Peer not initialized');
@@ -60,6 +70,7 @@ export const setupPeerListeners = (
   peer.on('connection', (conn: any) => {
     console.log('Incoming data connection from:', conn.peer);
     dataConnection = conn;
+    if (onRemotePeerId) onRemotePeerId(conn.peer);
     
     conn.on('data', (data: unknown) => {
       console.log('Received data:', data);
@@ -78,36 +89,41 @@ export const setupPeerListeners = (
   
   // Handle incoming media connections (calls)
   peer.on('call', async (call: any) => {
-    console.log('Incoming call from:', call.peer);
+    console.log('📞 Incoming call from:', call.peer);
+    console.log('📞 Local stream available:', !!localStream);
+    if (onRemotePeerId) onRemotePeerId(call.peer);
     
     try {
       // Answer the call with local stream
       if (localStream) {
+        console.log('📞 Answering call with local stream');
         call.answer(localStream);
         mediaConnection = call;
         
         // Handle remote stream
         call.on('stream', (stream: MediaStream) => {
-          console.log('Received remote stream');
+          console.log('📞 Received remote stream from incoming call');
           remoteStream = stream;
           onRemoteStream(stream);
         });
         
         call.on('close', () => {
-          console.log('Call ended');
+          console.log('📞 Incoming call ended');
           onConnectionClosed();
         });
         
         call.on('error', (error: Error) => {
-          console.error('Call error:', error);
+          console.error('📞 Incoming call error:', error);
         });
         
         isConnected = true;
+        console.log('📞 Call answered successfully');
       } else {
+        console.error('📞 No local stream available to answer call');
         throw new Error('No local stream available to answer call');
       }
     } catch (error) {
-      console.error('Failed to answer call:', error);
+      console.error('📞 Failed to answer call:', error);
     }
   });
 };
@@ -166,15 +182,18 @@ export const callPeer = async (remotePeerId: string, onRemoteStream?: (stream: M
       throw new Error('Local stream not available');
     }
     
-    console.log('Calling peer:', remotePeerId);
+    console.log('📞 Calling peer:', remotePeerId);
+    console.log('📞 My peer ID:', peer.id);
+    console.log('📞 Local stream available:', !!localStream);
     
     // Create media connection
     const call = peer.call(remotePeerId, localStream);
     mediaConnection = call;
+    console.log('📞 Media call created');
     
     // Handle remote stream
     call.on('stream', (stream: MediaStream) => {
-      console.log('Received remote stream');
+      console.log('📞 Received remote stream from outgoing call');
       remoteStream = stream;
       if (onRemoteStream) {
         onRemoteStream(stream);
@@ -182,37 +201,38 @@ export const callPeer = async (remotePeerId: string, onRemoteStream?: (stream: M
     });
     
     call.on('close', () => {
-      console.log('Call ended');
+      console.log('📞 Outgoing call ended');
       isConnected = false;
     });
     
     call.on('error', (error: Error) => {
-      console.error('Call error:', error);
+      console.error('📞 Outgoing call error:', error);
     });
     
     // Create data connection for signaling
     const conn = peer.connect(remotePeerId);
     dataConnection = conn;
+    console.log('📞 Data connection created');
     
     conn.on('open', () => {
-      console.log('Data connection established');
+      console.log('📞 Data connection established');
       isConnected = true;
     });
     
     conn.on('data', (data: unknown) => {
-      console.log('Received data:', data);
+      console.log('📞 Received data:', data);
     });
     
     conn.on('close', () => {
-      console.log('Data connection closed');
+      console.log('📞 Data connection closed');
     });
     
     conn.on('error', (error: Error) => {
-      console.error('Data connection error:', error);
+      console.error('📞 Data connection error:', error);
     });
     
   } catch (error) {
-    console.error('Failed to call peer:', error);
+    console.error('📞 Failed to call peer:', error);
     throw error;
   }
 };
@@ -243,14 +263,7 @@ export const endCall = async (): Promise<void> => {
       localStream = null;
     }
     
-    // Close peer connection
-    if (peer) {
-      peer.destroy();
-      peer = null;
-    }
-    
-    // Reset variables
-    currentPeerId = null;
+    // Reset connection state but keep peer alive for reconnection
     remoteStream = null;
     isConnected = false;
     
@@ -488,7 +501,38 @@ export const isPeerInitialized = (): boolean => {
   return peer !== null && currentPeerId !== null;
 };
 
-// Clean up resources
+// Reset for reconnection (keep peer alive, just close connections)
+export const resetForReconnection = (): void => {
+  // Close connections
+  if (mediaConnection) {
+    mediaConnection.close();
+    mediaConnection = null;
+  }
+  
+  if (dataConnection) {
+    dataConnection.close();
+    dataConnection = null;
+  }
+  
+  // Stop local stream
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
+  }
+  
+  // Reset state but keep peer alive (same session ID)
+  remoteStream = null;
+  isConnected = false;
+  
+  console.log('PeerJS reset for reconnection (peer kept alive)');
+};
+
+// Check if local stream is available and ready for calls
+export const isLocalStreamReady = (): boolean => {
+  return localStream !== null && localStream.active;
+};
+
+// Clean up resources completely
 export const cleanup = (): void => {
   if (peer) {
     peer.destroy();

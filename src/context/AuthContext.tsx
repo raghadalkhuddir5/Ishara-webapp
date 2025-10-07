@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../firebase";
-import { initializeFCM } from "../services/fcmService";
 import { startNotificationMonitoring, stopNotificationMonitoring } from "../services/notificationMonitor";
 
 interface AuthContextType {
@@ -17,16 +16,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('Auth state changed:', firebaseUser ? `User: ${firebaseUser.uid}` : 'No user');
       setUser(firebaseUser);
       setLoading(false);
       
-      // Initialize FCM and notification monitoring when user logs in
+      // Initialize notification monitoring when user logs in (in-app notifications only)
       if (firebaseUser) {
-        console.log('🔔 Initializing FCM and notification monitoring for user:', firebaseUser.uid);
-        await initializeFCM(firebaseUser.uid);
+        console.log('Starting notification monitoring for user:', firebaseUser.uid);
         startNotificationMonitoring(firebaseUser.uid);
       } else {
-        console.log('🔔 Stopping notification monitoring - user logged out');
+        console.log('Stopping notification monitoring - user logged out');
         stopNotificationMonitoring();
       }
     });

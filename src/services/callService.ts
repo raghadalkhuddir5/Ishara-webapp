@@ -7,7 +7,6 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy, 
   serverTimestamp,
   Timestamp 
 } from 'firebase/firestore';
@@ -74,10 +73,10 @@ export const endCall = async (callId: string, callQuality?: CallData['call_quali
 
     const callData = callDoc.data() as CallData;
     const startedAt = callData.started_at;
-    const endedAt = serverTimestamp() as Timestamp;
+    const endedAt = Timestamp.now();
     
     // Calculate duration
-    const durationSeconds = startedAt ? Math.floor((endedAt.seconds - startedAt.seconds)) : 0;
+    const durationSeconds = startedAt ? Math.floor((endedAt.toMillis() - startedAt.toMillis()) / 1000) : 0;
 
     const updateData: Partial<CallData> = {
       ended_at: endedAt,
@@ -127,16 +126,20 @@ export const getUserCalls = async (userId: string, limit: number = 10): Promise<
   try {
     const q = query(
       collection(db, 'calls'),
-      where('user_id', '==', userId),
-      orderBy('started_at', 'desc'),
-      // Note: You might need to add a composite index for this query
+      where('user_id', '==', userId)
     );
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.slice(0, limit).map(doc => ({
+    // Sort by started_at in memory since orderBy might need composite index
+    const calls = querySnapshot.docs.map(doc => ({
       call_id: doc.id,
       ...doc.data()
     })) as CallData[];
+    
+    // Sort by started_at descending and limit
+    return calls
+      .sort((a, b) => b.started_at.toMillis() - a.started_at.toMillis())
+      .slice(0, limit);
   } catch (error) {
     console.error('Error getting user calls:', error);
     throw error;
@@ -148,53 +151,33 @@ export const getInterpreterCalls = async (interpreterId: string, limit: number =
   try {
     const q = query(
       collection(db, 'calls'),
-      where('interpreter_id', '==', interpreterId),
-      orderBy('started_at', 'desc')
+      where('interpreter_id', '==', interpreterId)
     );
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.slice(0, limit).map(doc => ({
+    // Sort by started_at in memory since orderBy might need composite index
+    const calls = querySnapshot.docs.map(doc => ({
       call_id: doc.id,
       ...doc.data()
     })) as CallData[];
+    
+    // Sort by started_at descending and limit
+    return calls
+      .sort((a, b) => b.started_at.toMillis() - a.started_at.toMillis())
+      .slice(0, limit);
   } catch (error) {
     console.error('Error getting interpreter calls:', error);
     throw error;
   }
 };
 
-// Update call quality during the call
-export const updateCallQuality = async (callId: string, quality: CallData['call_quality']): Promise<void> => {
-  try {
-    await updateDoc(doc(db, 'calls', callId), {
-      call_quality: quality
-    });
-    console.log('Call quality updated');
-  } catch (error) {
-    console.error('Error updating call quality:', error);
-    throw error;
-  }
-};
-
-// Update technical metrics during the call
-export const updateTechnicalMetrics = async (callId: string, metrics: CallData['technical_metrics']): Promise<void> => {
-  try {
-    await updateDoc(doc(db, 'calls', callId), {
-      technical_metrics: metrics
-    });
-    console.log('Technical metrics updated');
-  } catch (error) {
-    console.error('Error updating technical metrics:', error);
-    throw error;
-  }
-};
 
 // Mark call as failed
 export const markCallAsFailed = async (callId: string, reason?: string): Promise<void> => {
   try {
     const updateData: Partial<CallData> = {
       status: 'failed',
-      ended_at: serverTimestamp() as Timestamp
+      ended_at: Timestamp.now()
     };
 
     if (reason) {

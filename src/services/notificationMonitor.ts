@@ -6,11 +6,10 @@ import {
   doc,
   updateDoc,
   getDocs,
-  getDoc,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { createNotification, deleteDuplicateNotifications, clearOldNotifications } from './notificationService';
+import { createNotification } from './notificationService';
 
 export interface SessionData {
   id: string;
@@ -58,8 +57,7 @@ class NotificationMonitor {
     this.cleanup();
     this.startSessionMonitoring();
     this.startReminderMonitoring();
-    // Clean up duplicates and old notifications (temporarily disabled for debugging)
-    // this.cleanupNotifications();
+    
   }
 
   // FLOW 1: Monitor for new session requests
@@ -69,20 +67,18 @@ class NotificationMonitor {
       return;
     }
 
-    console.log('🔔 Starting session monitoring for user:', this.currentUserId);
+    console.log(' Starting session monitoring for user:', this.currentUserId);
     
     // Listen to sessions where current user is the interpreter
     const interpreterSessionsQuery = query(
       collection(db, 'sessions'),
       where('interpreter_id', '==', this.currentUserId),
       where('status', 'in', ['requested', 'confirmed', 'cancelled'])
-      // Temporarily removed orderBy to avoid index requirement
-      // orderBy('created_at', 'desc'),
-      // limit(50)
+      
     );
 
     this.sessionUnsubscribeInterpreter = onSnapshot(interpreterSessionsQuery, async (snapshot) => {
-      console.log('📊 Interpreter sessions snapshot received:', snapshot.docs.length, 'documents');
+      console.log('Interpreter sessions snapshot received:', snapshot.docs.length, 'documents');
       
       snapshot.docChanges().forEach(async (change) => {
         const sessionData = { id: change.doc.id, ...change.doc.data() } as SessionData;
@@ -104,7 +100,7 @@ class NotificationMonitor {
         } else if (change.type === 'modified') {
           // Only send status change notifications to the user (deaf/mute)
           // Interpreter doesn't need to be notified of their own status changes
-          console.log('📝 Interpreter session modified - no notification needed for interpreter');
+          console.log(' Interpreter session modified - no notification needed for interpreter');
         }
       });
     }, (error) => {
@@ -116,18 +112,16 @@ class NotificationMonitor {
       collection(db, 'sessions'),
       where('user_id', '==', this.currentUserId),
       where('status', 'in', ['requested', 'confirmed', 'cancelled'])
-      // Temporarily removed orderBy to avoid index requirement
-      // orderBy('created_at', 'desc'),
-      // limit(50)
+    
     );
 
     this.sessionUnsubscribeUser = onSnapshot(userSessionsQuery, async (snapshot) => {
-      console.log('📊 User sessions snapshot received:', snapshot.docs.length, 'documents');
+      console.log(' User sessions snapshot received:', snapshot.docs.length, 'documents');
       
       snapshot.docChanges().forEach(async (change) => {
         const sessionData = { id: change.doc.id, ...change.doc.data() } as SessionData;
         
-        console.log('📊 User session change detected:', {
+        console.log(' User session change detected:', {
           type: change.type,
           sessionId: sessionData.id,
           userId: sessionData.user_id,
@@ -136,11 +130,11 @@ class NotificationMonitor {
           status: sessionData.status
         });
         
-        console.log('✅ Processing user session - current user is user');
+        console.log(' Processing user session - current user is user');
         
         if (change.type === 'added') {
           // User doesn't need notification for their own session creation
-          console.log('📝 User session created - no notification needed for user');
+          console.log(' User session created - no notification needed for user');
         } else if (change.type === 'modified') {
           // Only send status change notifications to the user (deaf/mute)
           await this.handleSessionStatusChange(sessionData, change.doc.metadata.fromCache);
@@ -155,24 +149,12 @@ class NotificationMonitor {
   private async handleNewSessionRequest(sessionData: SessionData): Promise<void> {
     if (sessionData.status !== 'requested') return;
     
-    console.log('📝 New session request detected:', sessionData.id);
-    console.log('📝 Session data:', sessionData);
+    console.log(' New session request detected:', sessionData.id);
+    console.log(' Session data:', sessionData);
     
     try {
-      // Get interpreter data
-      console.log('🔍 Getting interpreter data for:', sessionData.interpreter_id);
-      const interpreterData = await this.getUserData(sessionData.interpreter_id);
-      console.log('🔍 Interpreter data:', interpreterData);
-      
-      if (!interpreterData?.fcmToken) {
-        console.log('⚠️ No FCM token for interpreter:', sessionData.interpreter_id);
-        console.log('⚠️ Interpreter data available:', !!interpreterData);
-        console.log('⚠️ FCM token available:', !!interpreterData?.fcmToken);
-        return;
-      }
-
-      // Create in-app notification (browser notification handled by service worker)
-      console.log('📝 Creating notification for interpreter:', sessionData.interpreter_id);
+      // Create in-app notification for interpreter
+      console.log('Creating notification for interpreter:', sessionData.interpreter_id);
       
       const notificationId = await createNotification({
         user_id: sessionData.interpreter_id,
@@ -186,9 +168,9 @@ class NotificationMonitor {
         priority: 'high'
       });
 
-      console.log('✅ New request notification created with ID:', notificationId);
+      console.log(' New request notification created with ID:', notificationId);
     } catch (error) {
-      console.error('❌ Error handling new session request:', error);
+      console.error(' Error handling new session request:', error);
     }
   }
 
@@ -200,7 +182,7 @@ class NotificationMonitor {
     // Skip if we've already processed this session
     if (this.processedSessions.has(sessionData.id)) return;
     
-    console.log('📝 Session status change detected:', sessionData.id, sessionData.status);
+    console.log(' Session status change detected:', sessionData.id, sessionData.status);
     
     try {
       if (sessionData.status === 'confirmed') {
@@ -214,23 +196,16 @@ class NotificationMonitor {
       // Mark as processed
       this.processedSessions.add(sessionData.id);
     } catch (error) {
-      console.error('❌ Error handling session status change:', error);
+      console.error(' Error handling session status change:', error);
     }
   }
 
   // FLOW 2: Handle session confirmed
   private async handleSessionConfirmed(sessionData: SessionData): Promise<void> {
-    console.log('✅ Session confirmed:', sessionData.id);
+    console.log(' Session confirmed:', sessionData.id);
     
     try {
-      // Get user data
-      const userData = await this.getUserData(sessionData.user_id);
-      if (!userData?.fcmToken) {
-        console.log('⚠️ No FCM token for user:', sessionData.user_id);
-        return;
-      }
-
-      // Create in-app notification (browser notification handled by service worker)
+      // Create in-app notification for user
       await createNotification({
         user_id: sessionData.user_id,
         type: 'session_confirmed',
@@ -243,25 +218,18 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log('✅ Session confirmed notification sent to user');
+      console.log(' Session confirmed notification sent to user');
     } catch (error) {
-      console.error('❌ Error handling session confirmed:', error);
+      console.error(' Error handling session confirmed:', error);
     }
   }
 
   // FLOW 2: Handle session rejected
   private async handleSessionRejected(sessionData: SessionData): Promise<void> {
-    console.log('❌ Session rejected:', sessionData.id);
+    console.log(' Session rejected:', sessionData.id);
     
     try {
-      // Get user data
-      const userData = await this.getUserData(sessionData.user_id);
-      if (!userData?.fcmToken) {
-        console.log('⚠️ No FCM token for user:', sessionData.user_id);
-        return;
-      }
-
-      // Create in-app notification (browser notification handled by service worker)
+      // Create in-app notification for user
       await createNotification({
         user_id: sessionData.user_id,
         type: 'session_cancelled',
@@ -274,25 +242,18 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log('✅ Session rejected notification sent to user');
+      console.log('Session rejected notification sent to user');
     } catch (error) {
-      console.error('❌ Error handling session rejected:', error);
+      console.error(' Error handling session rejected:', error);
     }
   }
 
   // FLOW 3: Handle session cancelled
   private async handleSessionCancelled(sessionData: SessionData): Promise<void> {
-    console.log('🚫 Session cancelled:', sessionData.id);
+    console.log(' Session cancelled:', sessionData.id);
     
     try {
-      // Get interpreter data
-      const interpreterData = await this.getUserData(sessionData.interpreter_id);
-      if (!interpreterData?.fcmToken) {
-        console.log('⚠️ No FCM token for interpreter:', sessionData.interpreter_id);
-        return;
-      }
-
-      // Create in-app notification (browser notification handled by service worker)
+      // Create in-app notification for interpreter
       await createNotification({
         user_id: sessionData.interpreter_id,
         type: 'session_cancelled',
@@ -305,9 +266,9 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log('✅ Session cancelled notification sent to interpreter');
+      console.log(' Session cancelled notification sent to interpreter');
     } catch (error) {
-      console.error('❌ Error handling session cancelled:', error);
+      console.error(' Error handling session cancelled:', error);
     }
   }
 
@@ -318,7 +279,7 @@ class NotificationMonitor {
       return;
     }
 
-    console.log('⏰ Starting reminder monitoring for user:', this.currentUserId);
+    console.log(' Starting reminder monitoring for user:', this.currentUserId);
     
     // Check every 5 minutes
     this.reminderInterval = setInterval(async () => {
@@ -356,50 +317,40 @@ class NotificationMonitor {
         }
       });
     } catch (error) {
-      console.error('❌ Error checking reminders:', error);
+      console.error(' Error checking reminders:', error);
     }
   }
 
   // FLOW 4: Send reminder notification
   private async sendReminderNotification(sessionData: SessionData): Promise<void> {
-    console.log('⏰ Sending reminder for session:', sessionData.id);
+    console.log(' Sending reminder for session:', sessionData.id);
     
     try {
-      // Get both user and interpreter data
-      const [userData, interpreterData] = await Promise.all([
-        this.getUserData(sessionData.user_id),
-        this.getUserData(sessionData.interpreter_id)
-      ]);
-
       // Send to user
-      if (userData?.fcmToken) {
-        await createNotification({
-          user_id: sessionData.user_id,
-          type: 'session_reminder',
-          title: 'Session Reminder',
-          message: 'Your session starts in 30 minutes.',
-          data: {
-            session_id: sessionData.id,
-            interpreter_id: sessionData.interpreter_id
-          },
-          priority: 'high'
-        });
-      }
+      await createNotification({
+        user_id: sessionData.user_id,
+        type: 'session_reminder',
+        title: 'Session Reminder',
+        message: 'Your session starts in 30 minutes.',
+        data: {
+          session_id: sessionData.id,
+          interpreter_id: sessionData.interpreter_id
+        },
+        priority: 'high'
+      });
 
       // Send to interpreter
-      if (interpreterData?.fcmToken) {
-        await createNotification({
-          user_id: sessionData.interpreter_id,
-          type: 'session_reminder',
-          title: 'Session Reminder',
-          message: 'Your session starts in 30 minutes.',
-          data: {
-            session_id: sessionData.id,
-            user_id: sessionData.user_id
-          },
-          priority: 'high'
-        });
-      }
+      await createNotification({
+        user_id: sessionData.interpreter_id,
+        type: 'session_reminder',
+        title: 'Session Reminder',
+        message: 'Your session starts in 30 minutes.',
+        data: {
+          session_id: sessionData.id,
+          user_id: sessionData.user_id
+        },
+        priority: 'high'
+      });
 
       // Update session to mark reminder as sent
       const sessionRef = doc(db, 'sessions', sessionData.id);
@@ -407,33 +358,12 @@ class NotificationMonitor {
         reminderSent: true
       });
 
-      console.log('✅ Reminder notifications sent for session:', sessionData.id);
+      console.log(' Reminder notifications sent for session:', sessionData.id);
     } catch (error) {
-      console.error('❌ Error sending reminder notification:', error);
+      console.error(' Error sending reminder notification:', error);
     }
   }
 
-  // Helper method to get user data
-  private async getUserData(userId: string): Promise<UserData | null> {
-    try {
-      console.log('🔍 Fetching user data for ID:', userId);
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        const userData = { id: userDoc.id, ...userDoc.data() } as UserData;
-        console.log('🔍 User data retrieved:', userData);
-        console.log('🔍 FCM token in user data:', userData.fcmToken);
-        return userData;
-      } else {
-        console.log('⚠️ User document does not exist for ID:', userId);
-        return null;
-      }
-    } catch (error) {
-      console.error('❌ Error getting user data:', error);
-      return null;
-    }
-  }
 
   // Cleanup method
   public cleanup(): void {
@@ -446,43 +376,9 @@ class NotificationMonitor {
     if (this.reminderInterval) {
       clearInterval(this.reminderInterval);
     }
-    console.log('🔔 Notification monitoring stopped');
+    console.log(' Notification monitoring stopped');
   }
 
-  // Clean up notifications (duplicates and old notifications)
-  private async cleanupNotifications(): Promise<void> {
-    if (!this.currentUserId) {
-      console.warn('Cannot cleanup notifications without user ID');
-      return;
-    }
-
-    try {
-      console.log('🧹 Starting notification cleanup for user:', this.currentUserId);
-      
-      // Clean up duplicates (this should work without indexes)
-      try {
-        await deleteDuplicateNotifications(this.currentUserId);
-        console.log('✅ Duplicate cleanup completed');
-      } catch (duplicateError) {
-        console.log('⚠️ Duplicate cleanup failed, continuing:', duplicateError);
-      }
-      
-      // Clean up old notifications (older than 7 days) - this might need indexes
-      try {
-        await clearOldNotifications(this.currentUserId, 7);
-        console.log('✅ Old notification cleanup completed');
-      } catch (oldError) {
-        console.log('⚠️ Old notification cleanup failed (indexes may still be building):', oldError);
-        console.log('🔄 This is normal - cleanup will work once indexes are built');
-      }
-      
-      console.log('✅ Notification cleanup process completed');
-    } catch (error) {
-      console.error('❌ Error during notification cleanup:', error);
-      // Continue without cleanup - don't let this break the notification system
-      console.log('🔄 Continuing notification monitoring despite cleanup error');
-    }
-  }
 }
 
 // Export singleton instance (will be initialized with user ID)
@@ -490,7 +386,7 @@ let notificationMonitor: NotificationMonitor | null = null;
 
 // Export for manual initialization
 export const startNotificationMonitoring = (userId: string): void => {
-  console.log('🔔 Starting notification monitoring for user:', userId);
+  console.log(' Starting notification monitoring for user:', userId);
   if (notificationMonitor) {
     notificationMonitor.setCurrentUser(userId);
   } else {

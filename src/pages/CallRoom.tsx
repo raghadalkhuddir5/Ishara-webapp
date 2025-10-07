@@ -12,7 +12,7 @@ import { isSessionExpired } from "../utils/sessionUtils";
 export default function CallRoom() {
   const { sessionId } = useParams();
   const { t } = useI18n();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +20,17 @@ export default function CallRoom() {
   const [sessionData, setSessionData] = useState<any>(null);
 
   useEffect(() => {
-    if (!sessionId || !user) return;
+    console.log('CallRoom useEffect triggered:', { sessionId, user: user?.uid, authLoading });
+    if (!sessionId || authLoading) {
+      console.log('CallRoom: Missing sessionId or auth still loading, waiting...');
+      return;
+    }
+    
+    if (!user) {
+      console.log('CallRoom: No user after auth loaded, redirecting to login');
+      navigate('/login');
+      return;
+    }
     
     const initializeCall = async () => {
       try {
@@ -36,24 +46,44 @@ export default function CallRoom() {
         
         const session = sessionDoc.data();
         console.log('Session data loaded:', session);
+        console.log('Current user ID:', user.uid);
+        console.log('Session user_id:', session.user_id);
+        console.log('Session interpreter_id:', session.interpreter_id);
+        console.log('Session status:', session.status);
+        console.log('Session scheduled_time:', session.scheduled_time);
         
         // Check if user is authorized for this session
         if (session.user_id !== user.uid && session.interpreter_id !== user.uid) {
+          console.error('❌ Authorization failed:');
+          console.error('  - User ID:', user.uid);
+          console.error('  - Session user_id:', session.user_id);
+          console.error('  - Session interpreter_id:', session.interpreter_id);
           setError("You are not authorized to join this session");
           return;
         }
         
         // Check if session is confirmed
         if (session.status !== 'confirmed') {
+          console.error('❌ Session not confirmed:', session.status);
           setError("Session must be confirmed to start video call");
           return;
         }
         
         // Check if session is expired (past scheduled time)
-        if (isSessionExpired(session.scheduled_time)) {
+        const isExpired = isSessionExpired(session.scheduled_time);
+        console.log('Session expiry check:', {
+          scheduled_time: session.scheduled_time,
+          isExpired: isExpired,
+          currentTime: new Date().toISOString()
+        });
+        
+        if (isExpired) {
+          console.error('❌ Session expired:', session.scheduled_time);
           setError("This session has expired. Sessions can only be joined within 2 hours of the scheduled time.");
           return;
         }
+        
+        console.log('✅ All checks passed, user authorized');
         
         // Create PeerJS call document if it doesn't exist
         // For now, we'll let the VideoCall component handle peer ID generation
@@ -70,18 +100,20 @@ export default function CallRoom() {
     };
     
     initializeCall();
-  }, [sessionId, user]);
+  }, [sessionId, user, authLoading, navigate]);
 
   const handleCallEnd = () => {
     // Navigate back to dashboard or session list
     navigate("/dashboard");
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <CircularProgress size={60} />
-        <Typography variant="h6" sx={{ mt: 2 }}>{t("joining_call")}</Typography>
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          {authLoading ? "Loading authentication..." : t("joining_call")}
+        </Typography>
       </Box>
     );
   }

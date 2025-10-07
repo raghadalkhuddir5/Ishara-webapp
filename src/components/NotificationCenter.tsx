@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import {
   Box,
   Typography,
@@ -92,7 +93,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     try {
       await markAllNotificationsAsRead(user.uid);
       setNotifications(prev => 
-        prev.map(notif => ({ ...notif, is_read: true, read_at: new Date() }))
+        prev.map(notif => ({ ...notif, is_read: true, read_at: Timestamp.now() }))
       );
       setUnreadCount(0);
     } catch (err) {

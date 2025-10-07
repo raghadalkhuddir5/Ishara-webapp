@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) {
 }
 
 function ThemedApp() {
-  const { direction, locale } = useI18n();
+  const { direction } = useI18n();
   const theme = createTheme({
     direction,
     typography: {

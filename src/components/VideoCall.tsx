@@ -15,11 +15,11 @@ import {
   restartCamera,
   getLocalStream,
   isPeerConnected,
-  cleanup
+  cleanup,
+  resetForReconnection,
+  isLocalStreamReady
 } from "../services/peerjsService";
 import { getCallBySessionId, endCall as endCallRecord } from "../services/callService";
-import { onSnapshot, doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
 
 interface VideoCallProps {
   sessionId: string;
@@ -41,6 +41,28 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
   const [remotePeerId, setRemotePeerId] = useState<string | null>(null);
   const [callData, setCallData] = useState<any>(null);
 
+  // Function to attempt calling the remote peer (for callers)
+  const attemptCall = async (remoteId: string, attemptNumber: number = 1): Promise<void> => {
+    try {
+      console.log(`📞 Attempting call #${attemptNumber} to:`, remoteId);
+      await callPeer(remoteId, (stream: MediaStream) => {
+        console.log('📞 Received remote stream as caller');
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+        }
+        setIsJoined(true);
+      });
+      console.log('✅ Call initiated successfully');
+    } catch (error) {
+      console.log(`⚠️ Call attempt #${attemptNumber} failed:`, error);
+      if (attemptNumber < 5) { // Try up to 5 times
+        setTimeout(() => attemptCall(remoteId, attemptNumber + 1), 3000);
+      } else {
+        console.log('❌ Max call attempts reached');
+      }
+    }
+  };
+
   useEffect(() => {
     const initializeCall = async () => {
       try {
@@ -49,14 +71,27 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         
         console.log('Starting PeerJS call for session:', sessionId);
         
-        // Initialize PeerJS peer
-        const myPeerId = await initPeer();
+        // Derive deterministic peer IDs per role
+        const myId = role === 'deaf_mute' ? `${sessionId}-caller` : `${sessionId}-callee`;
+        const remoteId = role === 'deaf_mute' ? `${sessionId}-callee` : `${sessionId}-caller`;
+
+        // Initialize PeerJS with explicit ID
+        const myPeerId = await initPeer(myId);
         setPeerId(myPeerId);
         console.log('My Peer ID:', myPeerId);
 
-        // Start local media stream
-        const localStream = await startLocalStream(true, true);
-        console.log('Local stream obtained:', localStream);
+        // Set remote peer ID (the counterpart role)
+        setRemotePeerId(remoteId);
+
+        // Start local media stream (or restart if needed for reconnection)
+        let localStream = getLocalStream();
+        if (!localStream || !isLocalStreamReady()) {
+          console.log('🔄 Starting new local stream for reconnection...');
+          localStream = await startLocalStream(true, true);
+          console.log('✅ Local stream obtained:', localStream);
+        } else {
+          console.log('♻️ Reusing existing local stream:', localStream);
+        }
         
         // Do not attach to local video here, because while loading, the
         // video element isn't mounted yet. The effect below will attach the
@@ -80,6 +115,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           () => {
             console.log('Connection closed');
             setIsJoined(false);
+          },
+          // onRemotePeerId
+          (id: string) => {
+            console.log('Remote peer identified:', id);
+            setRemotePeerId(id);
           }
         );
 
@@ -87,48 +127,17 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         const callDataResult = await getCallBySessionId(sessionId);
         setCallData(callDataResult);
 
-        // Use a lightweight signaling doc keyed by sessionId to exchange peer IDs
-        const signalingRef = doc(db, 'CALLS', sessionId);
-
-        // Determine caller vs callee based on role
-        const isCaller = role === "deaf_mute";
-
-        if (isCaller) {
-          console.log('Calling as caller...');
-
-          // Publish caller peer ID
-          await setDoc(signalingRef, { callerPeerId: myPeerId, updated_at: Date.now() }, { merge: true });
-
-          console.log('Waiting for interpreter to join...');
-          // Listen for callee peer ID then initiate call
-          const unsubscribe = onSnapshot(signalingRef, async (snap) => {
-            if (snap.exists()) {
-              const data: any = snap.data();
-              if (data.calleePeerId && !isJoined) {
-                console.log('Interpreter joined, initiating call...');
-                setRemotePeerId(data.calleePeerId);
-                await callPeer(data.calleePeerId, (stream: MediaStream) => {
-                  console.log('Received remote stream as caller');
-                  if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = stream;
-                  }
-                  setIsJoined(true);
-                });
-                unsubscribe();
-              }
-            }
-          });
-
-          // Clean up listener on component unmount
-          return () => unsubscribe();
+        // Only caller initiates the call; callee waits to be called
+        if (role === 'deaf_mute') {
+          console.log('📞 Caller initiating call to:', remoteId);
+          // Add a small delay to ensure callee is ready, then start attempting calls
+          setTimeout(() => {
+            attemptCall(remoteId);
+          }, 1000);
         } else {
-          console.log('Waiting as callee...');
-
-          // Publish callee peer ID and wait for incoming call
-          await setDoc(signalingRef, { calleePeerId: myPeerId, updated_at: Date.now() }, { merge: true });
-
-          console.log('Callee peer ID published; waiting for incoming call');
-          // No further action: setupPeerListeners will handle incoming call
+          console.log('📞 Callee ready and waiting for incoming call from:', remoteId);
+          // For callee, we need to ensure we're ready to receive calls
+          // The setupPeerListeners already handles incoming calls
         }
 
         console.log('PeerJS call initialized successfully');
@@ -165,6 +174,25 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
 
     return () => clearTimeout(timeoutId);
   }, [isLoading]); // Run when loading state changes
+
+  // Periodic reconnection check for callers (deaf/mute users)
+  useEffect(() => {
+    if (role === 'deaf_mute' && !isJoined && remotePeerId) {
+      console.log('🔄 Setting up periodic reconnection check for caller');
+      
+      const reconnectionInterval = setInterval(() => {
+        if (!isJoined && remotePeerId) {
+          console.log('🔄 Periodic check: attempting to reconnect to callee');
+          attemptCall(remotePeerId);
+        }
+      }, 5000); // Check every 5 seconds
+
+      return () => {
+        console.log('🔄 Clearing periodic reconnection check');
+        clearInterval(reconnectionInterval);
+      };
+    }
+  }, [role, isJoined, remotePeerId, attemptCall]); // Run when these values change
 
   const handleToggleMic = async () => {
     try {
@@ -214,7 +242,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
   const handleEndCall = async () => {
     console.log('🔴 End call button clicked');
     try {
-      console.log('📞 Call data:', callData);
+      console.log('📊 Call data:', callData);
       
       // End the call record in database
       if (callData?.call_id) {
@@ -225,11 +253,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         console.log('⚠️ No call_id found in callData');
       }
       
-      // Clean up PeerJS connection
-      console.log('🧹 Cleaning up PeerJS connection');
-      cleanup();
+      // Reset for reconnection (keeps peer alive with same session ID)
+      console.log('🧹 Resetting PeerJS for reconnection...');
+      resetForReconnection();
       setIsJoined(false);
-      console.log('✅ PeerJS cleanup completed');
+      console.log('✅ PeerJS reset completed - ready for reconnection');
       
       // Call the onCallEnd callback if provided
       if (onCallEnd) {
@@ -237,9 +265,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         onCallEnd();
       }
       
-      console.log('🎉 Call ended successfully');
+      console.log('🎉 Call ended successfully - user can rejoin');
     } catch (error) {
-      console.error('💥 Failed to end call:', error);
+      console.error('❌ Failed to end call:', error);
     }
   };
 
