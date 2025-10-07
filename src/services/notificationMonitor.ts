@@ -3,22 +3,14 @@ import {
   query, 
   where, 
   onSnapshot, 
-  orderBy, 
-  limit,
   doc,
   updateDoc,
-  addDoc,
   getDocs,
   getDoc,
-  serverTimestamp,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { 
-  getFCMTokenFromUser
-} from './fcmService';
 import { createNotification, deleteDuplicateNotifications, clearOldNotifications } from './notificationService';
-import type { NotificationData } from '../types/services';
 
 export interface SessionData {
   id: string;

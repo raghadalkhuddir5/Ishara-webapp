@@ -187,3 +187,6 @@
 ### Notifications
 - user_id + is_read + created_at (DESC)
 - user_id + type + created_at (DESC)
+
+
+

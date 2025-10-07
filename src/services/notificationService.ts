@@ -3,14 +3,12 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
-  getDoc, 
   getDocs, 
   query, 
   where, 
   orderBy, 
   serverTimestamp,
-  Timestamp,
-  limit as limitQuery
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -24,7 +22,7 @@ export interface NotificationData {
   data?: { // Additional data for the notification
     session_id?: string;
     rating_id?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   is_read: boolean;
   priority: 'low' | 'medium' | 'high';
@@ -325,7 +323,7 @@ export const clearOldNotifications = async (userId: string, daysOld: number = 7)
       
       await Promise.all(updatePromises);
       console.log(`Cleared notifications older than ${daysOld} days for user:`, userId);
-    } catch (indexError) {
+    } catch {
       // If index is not ready, fall back to client-side filtering
       console.log('Index not ready, using fallback method for clearing old notifications');
       

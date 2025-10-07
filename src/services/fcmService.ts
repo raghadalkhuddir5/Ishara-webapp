@@ -8,7 +8,7 @@ import type { NotificationPayload } from '../types/services';
 const VAPID_KEY = 'BI0Jb9kj3HOS-Dxn3Kdh3AbxXbwqn46NFrN3aZljk0MV6F8PMNBPnaOTjDuSJuAMPVdiK43Rr_QBchEhyyp3c2A';
 
 // Initialize Firebase Messaging
-let messaging: any = null;
+let messaging: ReturnType<typeof getMessaging> | null = null;
 let swRegistration: ServiceWorkerRegistration | null = null;
 
 // Register service worker

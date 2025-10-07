@@ -54,7 +54,7 @@ function InterpreterSessions() {
       setNameMap((prev) => ({ ...prev, ...entries }));
     };
     if (items.length) void loadNames();
-  }, [items]);
+  }, [items, nameMap]);
 
   return (
     <Box>

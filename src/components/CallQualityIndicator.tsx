@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -22,7 +22,7 @@ import { updateCallQuality, updateTechnicalMetrics } from '../services/callServi
 interface CallQualityIndicatorProps {
   callId: string;
   showDetails?: boolean;
-  onQualityUpdate?: (quality: any) => void;
+  onQualityUpdate?: (quality: CallMetrics) => void;
 }
 
 interface CallMetrics {
@@ -50,7 +50,7 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
 
-  const getQualityColor = (quality: string) => {
+  const getQualityColor = (quality: string): 'success' | 'info' | 'warning' | 'error' | 'default' => {
     switch (quality) {
       case 'excellent': return 'success';
       case 'good': return 'info';
@@ -70,7 +70,7 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
     }
   };
 
-  const simulateQualityMetrics = () => {
+  const simulateQualityMetrics = useCallback(() => {
     // Simulate quality metrics - in real implementation, this would come from Agora SDK
     const qualities: Array<'poor' | 'fair' | 'good' | 'excellent'> = ['poor', 'fair', 'good', 'excellent'];
     const randomQuality = qualities[Math.floor(Math.random() * qualities.length)];
@@ -92,9 +92,9 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
     if (onQualityUpdate) {
       onQualityUpdate(newQuality);
     }
-  };
+  }, [onQualityUpdate]);
 
-  const updateQualityInDatabase = async (newQuality: CallMetrics) => {
+  const updateQualityInDatabase = useCallback(async (newQuality: CallMetrics) => {
     try {
       await updateCallQuality(callId, {
         video_quality: newQuality.video_quality,
@@ -108,7 +108,7 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
     } catch (error) {
       console.error('Error updating call quality:', error);
     }
-  };
+  }, [callId]);
 
   useEffect(() => {
     if (isMonitoring) {
@@ -118,13 +118,13 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
 
       return () => clearInterval(interval);
     }
-  }, [isMonitoring]);
+  }, [isMonitoring, simulateQualityMetrics]);
 
   useEffect(() => {
     if (quality && callId) {
       updateQualityInDatabase(quality);
     }
-  }, [quality, callId]);
+  }, [quality, callId, updateQualityInDatabase]);
 
   const startMonitoring = () => {
     setIsMonitoring(true);
@@ -171,13 +171,13 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
           <LinearProgress
             variant="determinate"
             value={getQualityValue(quality.video_quality)}
-            color={getQualityColor(quality.video_quality) as any}
+            color={getQualityColor(quality.video_quality)}
             sx={{ mb: 1 }}
           />
           <Chip
             label={quality.video_quality}
             size="small"
-            color={getQualityColor(quality.video_quality) as any}
+            color={getQualityColor(quality.video_quality)}
             variant="outlined"
           />
         </Grid>
@@ -190,13 +190,13 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
           <LinearProgress
             variant="determinate"
             value={getQualityValue(quality.audio_quality)}
-            color={getQualityColor(quality.audio_quality) as any}
+            color={getQualityColor(quality.audio_quality)}
             sx={{ mb: 1 }}
           />
           <Chip
             label={quality.audio_quality}
             size="small"
-            color={getQualityColor(quality.audio_quality) as any}
+            color={getQualityColor(quality.audio_quality)}
             variant="outlined"
           />
         </Grid>
@@ -209,13 +209,13 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
           <LinearProgress
             variant="determinate"
             value={getQualityValue(quality.connection_stability)}
-            color={getQualityColor(quality.connection_stability) as any}
+            color={getQualityColor(quality.connection_stability)}
             sx={{ mb: 1 }}
           />
           <Chip
             label={quality.connection_stability}
             size="small"
-            color={getQualityColor(quality.connection_stability) as any}
+            color={getQualityColor(quality.connection_stability)}
             variant="outlined"
           />
         </Grid>
@@ -277,3 +277,6 @@ const CallQualityIndicator: React.FC<CallQualityIndicatorProps> = ({
 };
 
 export default CallQualityIndicator;
+
+
+

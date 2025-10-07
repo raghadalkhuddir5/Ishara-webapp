@@ -3,8 +3,8 @@ import Peer from 'peerjs';
 // Global variables for peer and connections
 let peer: Peer | null = null;
 let currentPeerId: string | null = null;
-let dataConnection: any | null = null;
-let mediaConnection: any | null = null;
+let dataConnection: any = null;
+let mediaConnection: any = null;
 let localStream: MediaStream | null = null;
 let remoteStream: MediaStream | null = null;
 let isConnected = false;
@@ -49,7 +49,7 @@ export const initPeer = async (peerId?: string): Promise<string> => {
 // Set up event listeners for incoming connections
 export const setupPeerListeners = (
   onRemoteStream: (stream: MediaStream) => void,
-  onDataReceived: (data: any) => void,
+  onDataReceived: (data: unknown) => void,
   onConnectionClosed: () => void
 ): void => {
   if (!peer) {
@@ -61,7 +61,7 @@ export const setupPeerListeners = (
     console.log('Incoming data connection from:', conn.peer);
     dataConnection = conn;
     
-    conn.on('data', (data: any) => {
+    conn.on('data', (data: unknown) => {
       console.log('Received data:', data);
       onDataReceived(data);
     });
@@ -138,7 +138,7 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
     
     return localStream;
   } catch (error) {
-    console.error('❌ Failed to access camera/microphone:', error);
+    console.error(' Failed to access camera/microphone:', error);
     
     // Provide more specific error messages
     if (error instanceof Error) {
@@ -199,7 +199,7 @@ export const callPeer = async (remotePeerId: string, onRemoteStream?: (stream: M
       isConnected = true;
     });
     
-    conn.on('data', (data: any) => {
+    conn.on('data', (data: unknown) => {
       console.log('Received data:', data);
     });
     
@@ -291,7 +291,7 @@ export const restartCamera = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: any) => 
+      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
         s.track && s.track.kind === 'video'
       );
       if (sender) {
@@ -346,7 +346,7 @@ export const toggleCamera = async (): Promise<boolean> => {
         console.log('Camera track stopped - camera light should turn off');
         
         // Create a new video track when re-enabling
-        // We'll handle this in the VideoCall component
+        
       } else {
         console.log('Camera enabled');
       }
@@ -392,7 +392,7 @@ export const startScreenShare = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: { track: { kind: string; }; }) => 
+      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
         s.track && s.track.kind === 'video'
       );
       if (sender) {
@@ -438,9 +438,8 @@ export const stopScreenShare = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: { track: { kind: string; }; }) => 
-        s.track && s.track.kind === 'video'
-      );
+      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
+        s.track && s.track.kind === 'video');
       if (sender) {
         await sender.replaceTrack(cameraVideoTrack);
       }
@@ -455,7 +454,7 @@ export const stopScreenShare = async (): Promise<void> => {
 };
 
 // Send data to remote peer
-export const sendData = (data: any): void => {
+export const sendData = (data: unknown): void => {
   if (dataConnection && dataConnection.open) {
     dataConnection.send(data);
     console.log('Sent data:', data);

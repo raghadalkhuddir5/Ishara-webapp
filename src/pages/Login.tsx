@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { TextField, Button, Typography, Box, Alert, Divider } from "@mui/material";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -26,20 +25,22 @@ function Login() {
 
       // Redirect to ProtectedRoute
       navigate("/dashboard");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Login error:", error);
       
-      if (error.code === 'auth/user-not-found') {
+      const errorMessage = error instanceof Error ? error.message : "Login failed. Please try again.";
+      const errorCode = (error as { code?: string }).code;
+      
+      if (errorCode === 'auth/user-not-found') {
         setError("No account found with this email. Please sign up first.");
-      } else if (error.code === 'auth/wrong-password') {
+      } else if (errorCode === 'auth/wrong-password') {
         setError("Incorrect password. Please try again.");
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (errorCode === 'auth/invalid-email') {
         setError("Please enter a valid email address.");
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (errorCode === 'auth/too-many-requests') {
         setError("Too many failed attempts. Please try again later.");
       } else {
-        setError(error.message || "Login failed. Please try again.");
+        setError(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -58,15 +59,18 @@ function Login() {
       
       // Redirect to ProtectedRoute
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Google login error:", error);
       
-      if (error.code === 'auth/popup-closed-by-user') {
+      const errorMessage = error instanceof Error ? error.message : "Google sign-in failed. Please try again.";
+      const errorCode = (error as { code?: string }).code;
+      
+      if (errorCode === 'auth/popup-closed-by-user') {
         setError("Sign-in was cancelled. Please try again.");
-      } else if (error.code === 'auth/popup-blocked') {
+      } else if (errorCode === 'auth/popup-blocked') {
         setError("Popup was blocked by your browser. Please allow popups and try again.");
       } else {
-        setError(error.message || "Google sign-in failed. Please try again.");
+        setError(errorMessage);
       }
     } finally {
       setIsLoading(false);

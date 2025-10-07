@@ -23,7 +23,6 @@ import type { RatingData } from '../types/services';
 
 interface RatingFormProps {
   sessionId: string;
-  userId: string;
   interpreterId: string;
   interpreterName?: string;
   onRatingSubmitted?: (ratingId: string) => void;
@@ -33,7 +32,6 @@ interface RatingFormProps {
 
 const RatingForm: React.FC<RatingFormProps> = ({
   sessionId,
-  userId,
   interpreterId,
   interpreterName = 'Interpreter',
   onRatingSubmitted,
@@ -110,9 +108,10 @@ const RatingForm: React.FC<RatingFormProps> = ({
       if (onRatingSubmitted) {
         onRatingSubmitted(ratingId);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating rating:', err);
-      setError(err.message || 'Failed to submit rating');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit rating';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

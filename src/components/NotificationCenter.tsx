@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -28,7 +28,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { 
   getUserNotifications, 
-  markNotificationAsRead, 
   markAllNotificationsAsRead,
   getUnreadNotificationCount,
   deleteNotification
@@ -50,7 +49,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -77,7 +76,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, maxNotifications]);
 
   useEffect(() => {
     loadNotifications();
@@ -85,23 +84,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, [user, maxNotifications]);
-
-  const handleMarkAsRead = async (notificationId: string) => {
-    try {
-      await markNotificationAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.notification_id === notificationId 
-            ? { ...notif, is_read: true, read_at: new Date() as any }
-            : notif
-        )
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error('Error marking notification as read:', err);
-    }
-  };
+  }, [loadNotifications]);
 
   const handleMarkAllAsRead = async () => {
     if (!user) return;
@@ -109,7 +92,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     try {
       await markAllNotificationsAsRead(user.uid);
       setNotifications(prev => 
-        prev.map(notif => ({ ...notif, is_read: true, read_at: new Date() as any }))
+        prev.map(notif => ({ ...notif, is_read: true, read_at: new Date() }))
       );
       setUnreadCount(0);
     } catch (err) {
@@ -167,9 +150,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
-  const formatNotificationTime = (timestamp: any) => {
+  const formatNotificationTime = (timestamp: Date | { toDate: () => Date } | string | number) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = typeof timestamp === 'object' && 'toDate' in timestamp 
+      ? timestamp.toDate() 
+      : new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -251,7 +236,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       <Chip
                         label={notification.type.replace('_', ' ')}
                         size="small"
-                        color={getNotificationColor(notification.type) as any}
+                        color={getNotificationColor(notification.type)}
                         variant="outlined"
                       />
                     </Box>
