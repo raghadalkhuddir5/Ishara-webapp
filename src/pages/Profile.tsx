@@ -5,7 +5,16 @@ import { db } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useI18n } from "../context/I18nContext";
 import { getRatingsForInterpreter } from "../services/ratingService";
+import type { RatingData } from "../services/ratingService";
 import { Star } from "@mui/icons-material";
+
+interface UserData {
+  full_name?: string;
+  age?: number;
+  phone_number?: string;
+  language?: string;
+  role?: string;
+}
 
 function Profile() {
   const { user } = useAuth();
@@ -17,7 +26,7 @@ function Profile() {
   const [message, setMessage] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>("");
-  const [ratings, setRatings] = useState<any[]>([]);
+  const [ratings, setRatings] = useState<RatingData[]>([]);
   const [averageRating, setAverageRating] = useState<number>(0);
   const { t, setLocale } = useI18n();
 
@@ -26,7 +35,7 @@ function Profile() {
       if (!user) return;
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) {
-        const d = snap.data() as { full_name?: string; age?: number; phone_number?: string; language?: string; role?: string };
+        const d = snap.data() as UserData;
         setFullName(d.full_name ?? "");
         setAge(d.age?.toString() ?? "");
         setPhoneNumber(d.phone_number ?? "");
@@ -73,7 +82,7 @@ function Profile() {
         language,
         updated_at: new Date(),
       });
-      await setLocale((language as "en" | "ar"));
+      await setLocale(language as "en" | "ar");
       setMessage("Profile updated successfully!");
       setOpen(true);
     } catch (error) {
@@ -184,5 +193,3 @@ function Profile() {
 }
 
 export default Profile;
-
-

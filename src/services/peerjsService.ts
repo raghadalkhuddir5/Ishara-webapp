@@ -29,7 +29,16 @@ export const initPeer = async (peerId: string): Promise<string> => {
     }
     
     // Create new peer instance using provided peerId
-    peer = new Peer(peerId);
+    // Add configuration for better connection reliability
+    peer = new Peer(peerId, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      }
+    });
     
     return new Promise((resolve, reject) => {
       peer!.on('open', (id: string) => {
@@ -120,7 +129,36 @@ export const setupPeerListeners = (
         console.log('📞 Call answered successfully');
       } else {
         console.error('📞 No local stream available to answer call');
-        throw new Error('No local stream available to answer call');
+        // Try to start local stream and answer again
+        try {
+          console.log('📞 Attempting to start local stream for incoming call...');
+          localStream = await startLocalStream(true, true);
+          console.log('📞 Local stream started, answering call...');
+          call.answer(localStream);
+          mediaConnection = call;
+          
+          // Handle remote stream
+          call.on('stream', (stream: MediaStream) => {
+            console.log('📞 Received remote stream from incoming call (retry)');
+            remoteStream = stream;
+            onRemoteStream(stream);
+          });
+          
+          call.on('close', () => {
+            console.log('📞 Incoming call ended (retry)');
+            onConnectionClosed();
+          });
+          
+          call.on('error', (error: Error) => {
+            console.error('📞 Incoming call error (retry):', error);
+          });
+          
+          isConnected = true;
+          console.log('📞 Call answered successfully (retry)');
+        } catch (streamError) {
+          console.error('📞 Failed to start local stream for incoming call:', streamError);
+          throw new Error('No local stream available to answer call');
+        }
       }
     } catch (error) {
       console.error('📞 Failed to answer call:', error);
@@ -133,13 +171,13 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
   try {
     console.log('Requesting camera and microphone access...');
     
-    const constraints = {
+    const constraints: MediaStreamConstraints = {
       audio: audio,
       video: video ? {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 }
-      } : false
+      } as MediaTrackConstraints : false
     };
     
     console.log('Media constraints:', constraints);
@@ -153,7 +191,7 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
     })));
     
     return localStream;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(' Failed to access camera/microphone:', error);
     
     // Provide more specific error messages
@@ -164,6 +202,20 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
         throw new Error('No camera or microphone found. Please connect a camera and microphone.');
       } else if (error.name === 'NotReadableError') {
         throw new Error('Camera or microphone is already in use by another application.');
+      } else if (error.name === 'OverconstrainedError') {
+        // Try with simpler constraints
+        console.log('Trying with simpler constraints...');
+        try {
+          const fallbackConstraints: MediaStreamConstraints = {
+            audio: audio,
+            video: video
+          };
+          localStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          console.log('✅ Camera and microphone access granted with fallback constraints');
+          return localStream;
+        } catch (fallbackError) {
+          console.error('Fallback constraints also failed:', fallbackError);
+        }
       }
     }
     
@@ -290,7 +342,7 @@ export const restartCamera = async (): Promise<void> => {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 }
-      }
+      } as MediaTrackConstraints
     });
     
     // Replace the video track in local stream
@@ -304,7 +356,8 @@ export const restartCamera = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
+      const senders = mediaConnection.peerConnection.getSenders();
+      const sender = senders.find((s: RTCRtpSender) => 
         s.track && s.track.kind === 'video'
       );
       if (sender) {
@@ -357,9 +410,6 @@ export const toggleCamera = async (): Promise<boolean> => {
       if (!enabled) {
         videoTrack.stop();
         console.log('Camera track stopped - camera light should turn off');
-        
-        // Create a new video track when re-enabling
-        
       } else {
         console.log('Camera enabled');
       }
@@ -389,7 +439,7 @@ export const startScreenShare = async (): Promise<void> => {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 }
-      },
+      } as MediaTrackConstraints,
       audio: true
     });
     
@@ -405,7 +455,8 @@ export const startScreenShare = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
+      const senders = mediaConnection.peerConnection.getSenders();
+      const sender = senders.find((s: RTCRtpSender) => 
         s.track && s.track.kind === 'video'
       );
       if (sender) {
@@ -436,7 +487,7 @@ export const stopScreenShare = async (): Promise<void> => {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 }
-      }
+      } as MediaTrackConstraints
     });
     
     // Replace video track in local stream
@@ -451,7 +502,8 @@ export const stopScreenShare = async (): Promise<void> => {
     
     // Replace track in media connection if active
     if (mediaConnection) {
-      const sender = mediaConnection.peerConnection.getSenders().find((s: RTCRtpSender) => 
+      const senders = mediaConnection.peerConnection.getSenders();
+      const sender = senders.find((s: RTCRtpSender) => 
         s.track && s.track.kind === 'video');
       if (sender) {
         await sender.replaceTrack(cameraVideoTrack);

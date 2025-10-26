@@ -9,7 +9,8 @@ import {
   where, 
   orderBy, 
   limit,
-  serverTimestamp 
+  serverTimestamp,
+  Timestamp
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -19,7 +20,8 @@ export interface RatingData {
   interpreter_id: string;
   stars: number;
   feedback: string;
-  created_at: any;
+  created_at: Timestamp;
+  rating_id?: string;
 }
 
 export interface RatingSubmission {

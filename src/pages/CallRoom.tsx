@@ -110,7 +110,7 @@ export default function CallRoom() {
         
       } catch (err: any) {
         console.error("Failed to initialize call:", err);
-        setError(err.message || "Failed to load session data");
+        setError(err.message || "Failed to load session data. Please check your internet connection and try again.");
       } finally {
         setIsLoading(false);
       }
@@ -130,6 +130,8 @@ export default function CallRoom() {
 
   const handleRatingModalClose = () => {
     setShowRatingModal(false);
+    // After closing rating modal, go to sessions page
+    navigate("/sessions");
   };
 
   const handleRatingSubmitSuccess = () => {

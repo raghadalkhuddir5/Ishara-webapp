@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useRef, useState } from "react";
 import { Box, Typography, Button, Stack, IconButton, Paper, Alert, CircularProgress } from "@mui/material";
 import { Mic, MicOff, Videocam, VideocamOff, CallEnd, ScreenShare } from "@mui/icons-material";
@@ -17,11 +16,38 @@ import {
   isPeerConnected,
   cleanup,
   resetForReconnection,
-  isLocalStreamReady
+  isLocalStreamReady,
+  getCurrentPeerId
 } from "../services/peerjsService";
 import { getCallBySessionId, endCall as endCallRecord } from "../services/callService";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
+import type { Timestamp } from "firebase/firestore";
+
+interface CallData {
+  call_id?: string;
+  session_id: string;
+  user_id: string;
+  interpreter_id: string;
+  started_at: Timestamp;
+  ended_at?: Timestamp;
+  duration_seconds?: number;
+  status: 'active' | 'ended' | 'failed';
+  recording_url?: string;
+  recording_duration?: number;
+  call_quality: {
+    video_quality: 'poor' | 'fair' | 'good' | 'excellent';
+    audio_quality: 'poor' | 'fair' | 'good' | 'excellent';
+    connection_stability: 'poor' | 'fair' | 'good' | 'excellent';
+  };
+  technical_metrics?: {
+    avg_bitrate: number;
+    packet_loss: number;
+    jitter: number;
+    latency: number;
+  };
+  created_at: Timestamp;
+}
 
 interface VideoCallProps {
   sessionId: string;
@@ -42,26 +68,36 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [peerId, setPeerId] = useState<string | null>(null);
   const [remotePeerId, setRemotePeerId] = useState<string | null>(null);
-  const [callData, setCallData] = useState<any>(null);
+  const [callData, setCallData] = useState<CallData | null>(null);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
 
   // Function to attempt calling the remote peer (for callers)
   const attemptCall = async (remoteId: string, attemptNumber: number = 1): Promise<void> => {
     try {
       console.log(`📞 Attempting call #${attemptNumber} to:`, remoteId);
+      
+      // Check if we're already connected
+      if (isPeerConnected()) {
+        console.log('✅ Already connected, skipping call attempt');
+        return;
+      }
+      
       await callPeer(remoteId, (stream: MediaStream) => {
         console.log('📞 Received remote stream as caller');
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
         }
         setIsJoined(true);
+        setConnectionAttempts(0); // Reset attempts on success
       });
       console.log('✅ Call initiated successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       console.log(`⚠️ Call attempt #${attemptNumber} failed:`, error);
       if (attemptNumber < 5) { // Try up to 5 times
         setTimeout(() => attemptCall(remoteId, attemptNumber + 1), 3000);
       } else {
         console.log('❌ Max call attempts reached');
+        setError("Failed to connect after multiple attempts. Please refresh the page and try again.");
       }
     }
   };
@@ -96,9 +132,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           console.log('♻️ Reusing existing local stream:', localStream);
         }
         
-        // Do not attach to local video here, because while loading, the
-        // video element isn't mounted yet. The effect below will attach the
-        // stream once the element exists (after loading UI is gone).
+        // Attach local stream to video element immediately
+        if (localStream && localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
+          console.log('Local video element updated immediately');
+        }
 
         // Set up peer event listeners
         setupPeerListeners(
@@ -109,9 +147,10 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
               remoteVideoRef.current.srcObject = stream;
             }
             setIsJoined(true);
+            setConnectionAttempts(0); // Reset attempts on success
           },
           // onDataReceived
-          (data: any) => {
+          (data: unknown) => {
             console.log('Received data:', data);
           },
           // onConnectionClosed
@@ -136,7 +175,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           // Add a small delay to ensure callee is ready, then start attempting calls
           setTimeout(() => {
             attemptCall(remoteId);
-          }, 1000);
+          }, 2000);
         } else {
           console.log('📞 Callee ready and waiting for incoming call from:', remoteId);
           // For callee, we need to ensure we're ready to receive calls
@@ -145,9 +184,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
 
         console.log('PeerJS call initialized successfully');
         
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to initialize PeerJS call:', err);
-        setError(err.message || 'Failed to join call');
+        if (err instanceof Error) {
+          setError(err.message || 'Failed to join call. Please check your camera/microphone permissions.');
+        } else {
+          setError('Failed to join call. Please check your camera/microphone permissions.');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -173,36 +216,46 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
 
     // Try immediately and also after a short delay
     updateLocalVideo();
-    const timeoutId = setTimeout(updateLocalVideo, 500);
+    const timeoutId = setTimeout(updateLocalVideo, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [isLoading]); // Run when loading state changes
 
   // Periodic reconnection check for callers (deaf/mute users)
   useEffect(() => {
-    if (role === 'deaf_mute' && !isJoined && remotePeerId) {
+    let reconnectionInterval: NodeJS.Timeout | null = null;
+    
+    if (role === 'deaf_mute' && !isJoined && remotePeerId && connectionAttempts < 3) {
       console.log('🔄 Setting up periodic reconnection check for caller');
       
-      const reconnectionInterval = setInterval(() => {
+      reconnectionInterval = setInterval(() => {
         if (!isJoined && remotePeerId) {
           console.log('🔄 Periodic check: attempting to reconnect to callee');
+          setConnectionAttempts(prev => prev + 1);
           attemptCall(remotePeerId);
         }
-      }, 5000); // Check every 5 seconds
+      }, 8000); // Check every 8 seconds instead of 5 for better reliability
+    }
 
-      return () => {
+    return () => {
+      if (reconnectionInterval) {
         console.log('🔄 Clearing periodic reconnection check');
         clearInterval(reconnectionInterval);
-      };
-    }
-  }, [role, isJoined, remotePeerId, attemptCall]); // Run when these values change
+      }
+    };
+  }, [role, isJoined, remotePeerId]); // Run when these values change
 
   const handleToggleMic = async () => {
     try {
       const enabled = await toggleMicrophone();
       setIsMuted(!enabled);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to toggle microphone:', error);
+      if (error instanceof Error) {
+        setError("Failed to toggle microphone. Please try again.");
+      } else {
+        setError("Failed to toggle microphone. Please try again.");
+      }
     }
   };
 
@@ -223,8 +276,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           console.log('Local video element updated with new stream');
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to toggle camera:', error);
+      if (error instanceof Error) {
+        setError("Failed to toggle camera. Please try again.");
+      } else {
+        setError("Failed to toggle camera. Please try again.");
+      }
     }
   };
 
@@ -237,8 +295,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         await startScreenShare();
         setIsScreenSharing(true);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to toggle screen sharing:', error);
+      if (error instanceof Error) {
+        setError("Failed to toggle screen sharing. Please try again.");
+      } else {
+        setError("Failed to toggle screen sharing. Please try again.");
+      }
     }
   };
 
@@ -284,8 +347,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
       }
       
       console.log('🎉 Call ended successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Failed to end call:', error);
+      if (error instanceof Error) {
+        setError("Failed to end call properly. Please refresh the page.");
+      } else {
+        setError("Failed to end call properly. Please refresh the page.");
+      }
     }
   };
 
@@ -333,10 +401,10 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           Video Call - Session: {sessionId}
         </Typography>
         <Typography variant="body2" color="grey.400">
-          Status: {isPeerConnected() ? 'Connected' : 'Disconnected'} | Role: {role}
+          Status: {isPeerConnected() ? 'Connected' : 'Connecting...'} | Role: {role}
         </Typography>
         <Typography variant="body2" color="grey.400">
-          My Peer ID: {peerId} | Remote Peer ID: {remotePeerId || 'Unknown'}
+          My Peer ID: {getCurrentPeerId()} | Remote Peer ID: {remotePeerId || 'Unknown'}
         </Typography>
       </Box>
 
@@ -362,7 +430,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
             style={{ width: '100%', height: '100%', minHeight: 400 }}
           />
           {!isJoined && (
-            <Typography>Waiting for other participant...</Typography>
+            <Box sx={{ textAlign: 'center' }}>
+              <CircularProgress size={40} sx={{ mb: 2 }} />
+              <Typography>Waiting for other participant...</Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Connection attempts: {connectionAttempts}
+              </Typography>
+            </Box>
           )}
         </Paper>
 
@@ -443,7 +517,8 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           {isJoined ? "Connected" : "Connecting..."} | 
           Mic: {isMuted ? "Off" : "On"} | 
           Camera: {isVideoOn ? "On" : "Off"} |
-          Screen: {isScreenSharing ? "Sharing" : "Off"}
+          Screen: {isScreenSharing ? "Sharing" : "Off"} |
+          Attempts: {connectionAttempts}
         </Typography>
       </Box>
     </Box>
