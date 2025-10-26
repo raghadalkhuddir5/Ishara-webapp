@@ -75,7 +75,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "rater_id",
+          "fieldPath": "interpreter_id",
           "order": "ASCENDING"
         },
         {
@@ -89,7 +89,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "rated_id",
+          "fieldPath": "user_id",
           "order": "ASCENDING"
         },
         {
@@ -181,6 +181,24 @@
         {
           "fieldPath": "created_at",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "is_rated",
+          "order": "ASCENDING"
         }
       ]
     },

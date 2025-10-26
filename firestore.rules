@@ -27,7 +27,9 @@ service cloud.firestore {
     // Interpreters: interpreters can read and write their own interpreter document, others can read for finding interpreters
     match /interpreters/{interpreterId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(interpreterId);
+      allow create: if isOwner(interpreterId);
+      allow update: if isAuthenticated();
+      allow delete: if isOwner(interpreterId);
     }
     
     // Sessions: users can read sessions they're part of, interpreters can read/write sessions they're assigned to
@@ -35,12 +37,15 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
         (resource.data.user_id == request.auth.uid || 
          resource.data.interpreter_id == request.auth.uid);
-      allow write: if isAuthenticated() && 
-        (resource.data.user_id == request.auth.uid || 
-         resource.data.interpreter_id == request.auth.uid);
       allow create: if isAuthenticated() && 
         (request.resource.data.user_id == request.auth.uid || 
          request.resource.data.interpreter_id == request.auth.uid);
+      allow update: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || 
+         resource.data.interpreter_id == request.auth.uid);
+      allow delete: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || 
+         resource.data.interpreter_id == request.auth.uid);
     }
     
     // Calls: session recordings and call metadata - allow queries for session participants
@@ -56,14 +61,15 @@ service cloud.firestore {
     
     // Ratings: users can read ratings they gave or received, can create ratings for their sessions
     match /ratings/{ratingId} {
-      allow read: if isAuthenticated() && 
-        (resource.data.rater_id == request.auth.uid || 
-         resource.data.rated_id == request.auth.uid);
-      allow write: if isAuthenticated() && 
-        (resource.data.rater_id == request.auth.uid || 
-         request.resource.data.rater_id == request.auth.uid);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-        request.resource.data.rater_id == request.auth.uid;
+        request.resource.data.user_id == request.auth.uid &&
+        request.resource.data.interpreter_id != null &&
+        request.resource.data.session_id != null &&
+        request.resource.data.stars >= 1 &&
+        request.resource.data.stars <= 5;
+      // No updates or deletes allowed - ratings are permanent
+      allow update, delete: if false;
     }
     
     // Notifications: users can only read their own notifications, system can create notifications

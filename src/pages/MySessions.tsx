@@ -7,12 +7,18 @@ import { useI18n } from "../context/I18nContext";
 import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { isSessionExpired } from "../utils/sessionUtils";
+import RatingModal from "../components/RatingModal";
+import { canRateSession, getRatingForSession } from "../services/ratingService";
+import { Star } from "@mui/icons-material";
 
 interface SItem {
   id: string;
   scheduled_time: string;
   status: "requested" | "confirmed" | "cancelled" | "completed";
+  user_id: string;
   interpreter_id: string;
+  is_rated?: boolean;
+  rating_id?: string;
 }
 
 function MySessions() {
@@ -23,6 +29,9 @@ function MySessions() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
   const [open, setOpen] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SItem | null>(null);
+  const [ratingsMap, setRatingsMap] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -58,6 +67,33 @@ function MySessions() {
     if (items.length) void loadNames();
   }, [items, nameMap]);
 
+  // Fetch ratings for completed sessions
+  useEffect(() => {
+    const loadRatings = async () => {
+      const completedSessions = items.filter(s => s.status === 'completed' && s.is_rated);
+      if (completedSessions.length === 0) return;
+      
+      const ratings: Record<string, any> = {};
+      await Promise.all(
+        completedSessions.map(async (session) => {
+          try {
+            // Only load ratings for sessions where current user is the deaf/mute user
+            if (session.user_id === user?.uid) {
+              const rating = await getRatingForSession(session.id);
+              if (rating) {
+                ratings[session.id] = rating;
+              }
+            }
+          } catch (error) {
+            console.error('Failed to load rating for session:', session.id, error);
+          }
+        })
+      );
+      setRatingsMap(ratings);
+    };
+    if (items.length && user) void loadRatings();
+  }, [items, user]);
+
   const statusLabel = (s: SItem["status"]) => {
     if (s === "requested") return t("status_requested");
     if (s === "confirmed") return t("status_confirmed");
@@ -81,6 +117,56 @@ function MySessions() {
     }
   };
 
+  const handleRateSession = async (session: SItem) => {
+    if (!user) return;
+    
+    try {
+      const canRate = await canRateSession(session.id, user.uid);
+      if (canRate) {
+        setSelectedSession(session);
+        setShowRatingModal(true);
+      } else {
+        setMessage("You cannot rate this session. It may already be rated or not completed.");
+        setOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to check if session can be rated:', error);
+      setMessage("Failed to check rating eligibility. Please try again.");
+      setOpen(true);
+    }
+  };
+
+  const handleRatingModalClose = () => {
+    setShowRatingModal(false);
+    setSelectedSession(null);
+  };
+
+  const handleRatingSubmitSuccess = () => {
+    setShowRatingModal(false);
+    setSelectedSession(null);
+    setMessage("Rating submitted successfully!");
+    setOpen(true);
+  };
+
+  const renderStars = (stars: number) => {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            sx={{
+              fontSize: 16,
+              color: star <= stars ? '#ffc107' : '#ddd'
+            }}
+          />
+        ))}
+        <Typography variant="body2" sx={{ ml: 0.5 }}>
+          {stars}/5
+        </Typography>
+      </Box>
+    );
+  };
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>{t("my_sessions")}</Typography>
@@ -93,7 +179,7 @@ function MySessions() {
               <Box sx={{ flexGrow: 1 }} />
               <Chip label={statusLabel(s.status)} color={s.status === "confirmed" ? "success" : s.status === "cancelled" ? "default" : "warning"} />
             </Stack>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} alignItems="center">
               {s.status === "requested" && (
                 <Button 
                   color="error" 
@@ -125,6 +211,31 @@ function MySessions() {
                   />
                 );
               })()}
+              {s.status === "completed" && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {s.is_rated ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip 
+                        label="Rated" 
+                        color="success" 
+                        variant="outlined"
+                        size="small"
+                        icon={<Star sx={{ fontSize: 16 }} />}
+                      />
+                      {ratingsMap[s.id] && renderStars(ratingsMap[s.id].stars)}
+                    </Box>
+                  ) : (
+                    <Button 
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => handleRateSession(s)}
+                      size="small"
+                    >
+                      Rate This Session
+                    </Button>
+                  )}
+                </Box>
+              )}
             </Stack>
           </Stack>
         ))}
@@ -143,6 +254,17 @@ function MySessions() {
           {message}
         </Alert>
       </Snackbar>
+
+      {showRatingModal && selectedSession && (
+        <RatingModal
+          isOpen={showRatingModal}
+          sessionId={selectedSession.id}
+          interpreterId={selectedSession.interpreter_id}
+          interpreterName={nameMap[selectedSession.interpreter_id] || selectedSession.interpreter_id}
+          onClose={handleRatingModalClose}
+          onSubmitSuccess={handleRatingSubmitSuccess}
+        />
+      )}
     </Box>
   );
 }

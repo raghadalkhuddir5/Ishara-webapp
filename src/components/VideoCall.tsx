@@ -20,15 +20,18 @@ import {
   isLocalStreamReady
 } from "../services/peerjsService";
 import { getCallBySessionId, endCall as endCallRecord } from "../services/callService";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface VideoCallProps {
   sessionId: string;
   currentUid: string;
   role: "deaf_mute" | "interpreter";
   onCallEnd?: () => void;
+  onShowRatingModal?: () => void;
 }
 
-const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCallEnd }) => {
+const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCallEnd, onShowRatingModal }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const [isJoined, setIsJoined] = useState(false);
@@ -253,19 +256,34 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         console.log('⚠️ No call_id found in callData');
       }
       
+      // Update session status to completed
+      console.log('📝 Updating session status to completed');
+      await updateDoc(doc(db, "sessions", sessionId), {
+        status: "completed",
+        ended_at: serverTimestamp(),
+        updated_at: serverTimestamp()
+      });
+      console.log('✅ Session marked as completed');
+      
       // Reset for reconnection (keeps peer alive with same session ID)
       console.log('🧹 Resetting PeerJS for reconnection...');
       resetForReconnection();
       setIsJoined(false);
       console.log('✅ PeerJS reset completed - ready for reconnection');
       
-      // Call the onCallEnd callback if provided
-      if (onCallEnd) {
-        console.log('📞 Calling onCallEnd callback');
-        onCallEnd();
+      // Show rating modal for deaf/mute users
+      if (role === 'deaf_mute' && onShowRatingModal) {
+        console.log('⭐ Showing rating modal for deaf/mute user');
+        onShowRatingModal();
+      } else {
+        // Call the onCallEnd callback for interpreters
+        if (onCallEnd) {
+          console.log('📞 Calling onCallEnd callback');
+          onCallEnd();
+        }
       }
       
-      console.log('🎉 Call ended successfully - user can rejoin');
+      console.log('🎉 Call ended successfully');
     } catch (error) {
       console.error('❌ Failed to end call:', error);
     }

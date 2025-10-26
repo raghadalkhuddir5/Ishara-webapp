@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import VideoCall from "../components/VideoCall";
+import RatingModal from "../components/RatingModal";
 import { isSessionExpired } from "../utils/sessionUtils";
 
 export default function CallRoom() {
@@ -18,6 +19,8 @@ export default function CallRoom() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [sessionData, setSessionData] = useState<any>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [interpreterName, setInterpreterName] = useState<string>("");
 
   useEffect(() => {
     console.log('CallRoom useEffect triggered:', { sessionId, user: user?.uid, authLoading });
@@ -54,7 +57,7 @@ export default function CallRoom() {
         
         // Check if user is authorized for this session
         if (session.user_id !== user.uid && session.interpreter_id !== user.uid) {
-          console.error('❌ Authorization failed:');
+          console.error(' Authorization failed:');
           console.error('  - User ID:', user.uid);
           console.error('  - Session user_id:', session.user_id);
           console.error('  - Session interpreter_id:', session.interpreter_id);
@@ -64,7 +67,7 @@ export default function CallRoom() {
         
         // Check if session is confirmed
         if (session.status !== 'confirmed') {
-          console.error('❌ Session not confirmed:', session.status);
+          console.error('Session not confirmed:', session.status);
           setError("Session must be confirmed to start video call");
           return;
         }
@@ -78,12 +81,26 @@ export default function CallRoom() {
         });
         
         if (isExpired) {
-          console.error('❌ Session expired:', session.scheduled_time);
+          console.error(' Session expired:', session.scheduled_time);
           setError("This session has expired. Sessions can only be joined within 2 hours of the scheduled time.");
           return;
         }
         
-        console.log('✅ All checks passed, user authorized');
+        console.log(' All checks passed, user authorized');
+        
+        // Get interpreter name for rating modal
+        try {
+          const interpreterDoc = await getDoc(doc(db, "users", session.interpreter_id));
+          if (interpreterDoc.exists()) {
+            const interpreterData = interpreterDoc.data();
+            setInterpreterName(interpreterData.full_name || session.interpreter_id);
+          } else {
+            setInterpreterName(session.interpreter_id);
+          }
+        } catch (err) {
+          console.error('Failed to get interpreter name:', err);
+          setInterpreterName(session.interpreter_id);
+        }
         
         // Create PeerJS call document if it doesn't exist
         // For now, we'll let the VideoCall component handle peer ID generation
@@ -105,6 +122,19 @@ export default function CallRoom() {
   const handleCallEnd = () => {
     // Navigate back to dashboard or session list
     navigate("/dashboard");
+  };
+
+  const handleShowRatingModal = () => {
+    setShowRatingModal(true);
+  };
+
+  const handleRatingModalClose = () => {
+    setShowRatingModal(false);
+  };
+
+  const handleRatingSubmitSuccess = () => {
+    setShowRatingModal(false);
+    navigate("/sessions");
   };
 
   if (authLoading || isLoading) {
@@ -148,11 +178,25 @@ export default function CallRoom() {
   const userRole = sessionData.user_id === user?.uid ? "deaf_mute" : "interpreter";
 
   return (
-    <VideoCall 
-      sessionId={sessionId!}
-      currentUid={user!.uid}
-      role={userRole}
-      onCallEnd={handleCallEnd}
-    />
+    <>
+      <VideoCall 
+        sessionId={sessionId!}
+        currentUid={user!.uid}
+        role={userRole}
+        onCallEnd={handleCallEnd}
+        onShowRatingModal={handleShowRatingModal}
+      />
+      
+      {showRatingModal && (
+        <RatingModal
+          isOpen={showRatingModal}
+          sessionId={sessionId!}
+          interpreterId={sessionData.interpreter_id}
+          interpreterName={interpreterName}
+          onClose={handleRatingModalClose}
+          onSubmitSuccess={handleRatingSubmitSuccess}
+        />
+      )}
+    </>
   );
 }

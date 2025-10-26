@@ -5,6 +5,7 @@ import { useState } from "react";
 import { collection, doc, getDocs, addDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { Star } from "@mui/icons-material";
 
 function BookSession() {
   const { t } = useI18n();
@@ -12,7 +13,7 @@ function BookSession() {
   const [mode, setMode] = useState<"immediate" | "scheduled">("immediate");
   const [date, setDate] = useState<string>("");
   const [time, setTime] = useState<string>("");
-  const [matchingInterpreters, setMatchingInterpreters] = useState<Array<{ id: string; full_name?: string }>>([]);
+  const [matchingInterpreters, setMatchingInterpreters] = useState<Array<{ id: string; full_name?: string; average_rating?: number }>>([]);
   const [booking, setBooking] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [open, setOpen] = useState(false);
@@ -42,7 +43,7 @@ function BookSession() {
     }
     // Query interpreters collection directly
     const interpretersSnap = await getDocs(collection(db, "interpreters"));
-    const result: Array<{ id: string; full_name?: string }> = [];
+    const result: Array<{ id: string; full_name?: string; average_rating?: number }> = [];
     
     for (const interpreterDoc of interpretersSnap.docs) {
       const interpreterData = interpreterDoc.data() as any;
@@ -57,7 +58,8 @@ function BookSession() {
         
         result.push({ 
           id: interpreterDoc.id, 
-          full_name: userData.full_name || interpreterData.full_name || interpreterDoc.id 
+          full_name: userData.full_name || interpreterData.full_name || interpreterDoc.id,
+          average_rating: interpreterData.average_rating || 0
         });
       }
     }
@@ -102,7 +104,8 @@ function BookSession() {
         status: "requested",
         duration: 0,
         created_at: serverTimestamp(),
-        reminderSent: false
+        reminderSent: false,
+        is_rated: false
       });
       setMessage("Session reserved successfully! Check 'My Sessions' for updates.");
       setOpen(true);
@@ -150,7 +153,21 @@ function BookSession() {
           <Stack spacing={1}>
             {matchingInterpreters.map((i) => (
               <Stack key={i.id} direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" sx={{ border: "1px solid #ddd", p: 1, borderRadius: 1 }}>
-                <Typography sx={{ flex: 1 }}>{i.full_name || i.id}</Typography>
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ fontWeight: 'bold' }}>{i.full_name || i.id}</Typography>
+                  {(i.average_rating || 0) > 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                      <Star sx={{ fontSize: 16, color: '#ffc107' }} />
+                      <Typography variant="body2" color="text.secondary">
+                        {i.average_rating || 0}/5
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      No ratings yet
+                    </Typography>
+                  )}
+                </Box>
                 <Button 
                   variant="contained" 
                   onClick={() => requestSession(i.id)}

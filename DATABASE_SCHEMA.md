@@ -44,7 +44,7 @@
   };
   languages: string[];
   hourly_rate?: number;
-  rating_average: number;
+  average_rating: number;          // Calculated average rating (default: 0)
   total_sessions: number;
   created_at: Timestamp;
   updated_at: Timestamp;
@@ -69,6 +69,8 @@
   ended_at?: Timestamp;
   channel_name?: string;          // For video calls
   temp_token?: string;            // For video calls
+  is_rated: boolean;              // Track if session was rated (default: false)
+  rating_id?: string;             // Reference to rating document (optional)
 }
 ```
 
@@ -103,23 +105,13 @@
 ### 5. **ratings** Collection (NEW)
 ```typescript
 {
-  rating_id: string;              // Auto-generated
-  session_id: string;             // Reference to sessions
-  rater_id: string;               // User giving the rating
-  rated_id: string;               // User being rated
-  rater_role: "deaf_mute" | "interpreter";
-  rated_role: "deaf_mute" | "interpreter";
-  rating: number;                 // 1-5 stars
-  comment?: string;
-  categories: {
-    communication: number;        // 1-5
-    professionalism: number;      // 1-5
-    punctuality: number;          // 1-5
-    technical_quality: number;    // 1-5
-  };
-  is_anonymous: boolean;
+  rating_id: string;              // Auto-generated document ID
+  session_id: string;            // Reference to the session (foreign key)
+  user_id: string;               // ID of user who gave the rating
+  interpreter_id: string;        // ID of interpreter being rated
+  stars: number;                 // 1-5 star rating
+  feedback: string;              // Optional comment
   created_at: Timestamp;
-  updated_at: Timestamp;
 }
 ```
 
@@ -181,12 +173,13 @@
 
 ### Ratings
 - session_id
-- rater_id + created_at (DESC)
-- rated_id + created_at (DESC)
+- interpreter_id + created_at (DESC)
+- user_id + created_at (DESC)
 
 ### Notifications
 - user_id + is_read + created_at (DESC)
 - user_id + type + created_at (DESC)
+
 
 
 
