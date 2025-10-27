@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "backendAuthType": "basic token",
+  "backendUsername": "zahra@gmail.com",
+  "backendPassword": "R@2025",
+  "executionArgs": {
+    "projectName": "ishara-web",
+    "projectPath": "C:\\Users\\hp\\OneDrive\\Desktop\\Draft\\ishara-web",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-MXCoPwWahH4uNZZtPvbPUJGePyypFfKeXC4P4sr2gyvwJ7z3KSJVZV1aQtxmmSDjNR3quNltAVFtUex066Kgg1iCuG7k3CY6RiajbF1NkKlkGDvZH5Zw7exxqosfv4sfanM"
+    }
+  }
+}

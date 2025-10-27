@@ -56,6 +56,14 @@ function InterpreterSessions() {
     if (items.length) void loadNames();
   }, [items, nameMap]);
 
+  const statusLabel = (status: string) => {
+    if (status === "requested") return t("status_requested");
+    if (status === "confirmed") return t("status_confirmed");
+    if (status === "cancelled") return t("status_cancelled");
+    if (status === "completed") return t("status_completed");
+    return status;
+  };
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>{t("interpreter_sessions")}</Typography>
@@ -65,7 +73,7 @@ function InterpreterSessions() {
             <Typography sx={{ minWidth: 240 }}>{new Date(s.scheduled_time).toLocaleString()}</Typography>
             <Typography sx={{ minWidth: 160 }}>{nameMap[s.user_id] || s.user_id}</Typography>
             <Box sx={{ flexGrow: 1 }} />
-            <Chip label={s.status} color={s.status === "confirmed" ? "success" : "default"} />
+            <Chip label={statusLabel(s.status)} color={s.status === "confirmed" ? "success" : "default"} />
             {s.status === "confirmed" && (() => {
               // Check if session is expired (past scheduled time)
               const expired = isSessionExpired(s.scheduled_time);
@@ -81,7 +89,7 @@ function InterpreterSessions() {
                 </Button>
               ) : (
                 <Chip 
-                  label="Expired" 
+                  label={t("expired")} 
                   color="error" 
                   variant="outlined"
                   size="small"
@@ -96,5 +104,3 @@ function InterpreterSessions() {
 }
 
 export default InterpreterSessions;
-
-

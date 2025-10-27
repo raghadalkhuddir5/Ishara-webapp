@@ -23,6 +23,7 @@ import { getCallBySessionId, endCall as endCallRecord } from "../services/callSe
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import type { Timestamp } from "firebase/firestore";
+import { useI18n } from "../context/I18nContext";
 
 interface CallData {
   call_id?: string;
@@ -58,6 +59,7 @@ interface VideoCallProps {
 }
 
 const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCallEnd, onShowRatingModal }) => {
+  const { t } = useI18n();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const [isJoined, setIsJoined] = useState(false);
@@ -97,7 +99,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         setTimeout(() => attemptCall(remoteId, attemptNumber + 1), 3000);
       } else {
         console.log('❌ Max call attempts reached');
-        setError("Failed to connect after multiple attempts. Please refresh the page and try again.");
+        setError(t("call_failed_after_attempts"));
       }
     }
   };
@@ -187,9 +189,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
       } catch (err: unknown) {
         console.error('Failed to initialize PeerJS call:', err);
         if (err instanceof Error) {
-          setError(err.message || 'Failed to join call. Please check your camera/microphone permissions.');
+          setError(err.message || t("failed_to_join_call"));
         } else {
-          setError('Failed to join call. Please check your camera/microphone permissions.');
+          setError(t("failed_to_join_call"));
         }
       } finally {
         setIsLoading(false);
@@ -202,7 +204,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
       console.log('Cleaning up PeerJS call...');
       cleanup();
     };
-  }, [sessionId, currentUid, role]);
+  }, [sessionId, currentUid, role, t]);
 
   // Additional effect to ensure local video is properly connected
   useEffect(() => {
@@ -243,7 +245,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
         clearInterval(reconnectionInterval);
       }
     };
-  }, [role, isJoined, remotePeerId]); // Run when these values change
+  }, [role, isJoined, remotePeerId, t]); // Run when these values change
 
   const handleToggleMic = async () => {
     try {
@@ -252,9 +254,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
     } catch (error: unknown) {
       console.error('Failed to toggle microphone:', error);
       if (error instanceof Error) {
-        setError("Failed to toggle microphone. Please try again.");
+        setError(t("failed_to_toggle_microphone"));
       } else {
-        setError("Failed to toggle microphone. Please try again.");
+        setError(t("failed_to_toggle_microphone"));
       }
     }
   };
@@ -279,9 +281,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
     } catch (error: unknown) {
       console.error('Failed to toggle camera:', error);
       if (error instanceof Error) {
-        setError("Failed to toggle camera. Please try again.");
+        setError(t("failed_to_toggle_camera"));
       } else {
-        setError("Failed to toggle camera. Please try again.");
+        setError(t("failed_to_toggle_camera"));
       }
     }
   };
@@ -298,9 +300,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
     } catch (error: unknown) {
       console.error('Failed to toggle screen sharing:', error);
       if (error instanceof Error) {
-        setError("Failed to toggle screen sharing. Please try again.");
+        setError(t("failed_to_toggle_screen_sharing"));
       } else {
-        setError("Failed to toggle screen sharing. Please try again.");
+        setError(t("failed_to_toggle_screen_sharing"));
       }
     }
   };
@@ -350,9 +352,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
     } catch (error: unknown) {
       console.error('❌ Failed to end call:', error);
       if (error instanceof Error) {
-        setError("Failed to end call properly. Please refresh the page.");
+        setError(t("failed_to_end_call"));
       } else {
-        setError("Failed to end call properly. Please refresh the page.");
+        setError(t("failed_to_end_call"));
       }
     }
   };
@@ -361,20 +363,20 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <CircularProgress size={60} />
-        <Typography variant="h6" sx={{ mt: 2 }}>Joining call...</Typography>
+        <Typography variant="h6" sx={{ mt: 2 }}>{t("joining_call")}</Typography>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          Role: {role} | Session: {sessionId}
+          {t("role")}: {role} | {t("session")}: {sessionId}
         </Typography>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          {role === "deaf_mute" ? "Calling interpreter..." : "Waiting for call..."}
+          {role === "deaf_mute" ? t("calling_interpreter") : t("waiting_for_call")}
         </Typography>
         {peerId && (
           <Typography variant="body2" sx={{ mt: 1 }}>
-            My Peer ID: {peerId}
+            {t("my_peer_id")}: {peerId}
           </Typography>
         )}
         <Typography variant="body2" sx={{ mt: 2, color: 'primary.main' }}>
-          📹 Please allow camera and microphone access when prompted
+          📹 {t("allow_camera_microphone")}
         </Typography>
       </Box>
     );
@@ -387,7 +389,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           {error}
         </Alert>
         <Button variant="contained" onClick={() => window.location.reload()}>
-          Retry
+          {t("retry")}
         </Button>
       </Box>
     );
@@ -398,13 +400,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
       {/* Header */}
       <Box sx={{ p: 2, bgcolor: '#2d2d2d', color: 'white' }}>
         <Typography variant="h6">
-          Video Call - Session: {sessionId}
+          {t("call_room_title")} - {t("session")}: {sessionId}
         </Typography>
         <Typography variant="body2" color="grey.400">
-          Status: {isPeerConnected() ? 'Connected' : 'Connecting...'} | Role: {role}
+          {t("status")}: {isPeerConnected() ? t("connected") : t("connecting")} | {t("role")}: {role}
         </Typography>
         <Typography variant="body2" color="grey.400">
-          My Peer ID: {getCurrentPeerId()} | Remote Peer ID: {remotePeerId || 'Unknown'}
+          {t("my_peer_id")}: {getCurrentPeerId()} | {t("remote_peer_id")}: {remotePeerId || t("unknown")}
         </Typography>
       </Box>
 
@@ -432,9 +434,9 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
           {!isJoined && (
             <Box sx={{ textAlign: 'center' }}>
               <CircularProgress size={40} sx={{ mb: 2 }} />
-              <Typography>Waiting for other participant...</Typography>
+              <Typography>{t("waiting_participant")}</Typography>
               <Typography variant="body2" sx={{ mt: 1 }}>
-                Connection attempts: {connectionAttempts}
+                {t("connection_attempts")}: {connectionAttempts}
               </Typography>
             </Box>
           )}
@@ -514,11 +516,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, onCa
       {/* Status */}
       <Box sx={{ p: 1, bgcolor: '#1a1a1a', color: 'white', textAlign: 'center' }}>
         <Typography variant="body2">
-          {isJoined ? "Connected" : "Connecting..."} | 
-          Mic: {isMuted ? "Off" : "On"} | 
-          Camera: {isVideoOn ? "On" : "Off"} |
-          Screen: {isScreenSharing ? "Sharing" : "Off"} |
-          Attempts: {connectionAttempts}
+          {isJoined ? t("connected") : t("connecting")} | 
+          {t("mic")}: {isMuted ? t("off") : t("on")} | 
+          {t("camera")}: {isVideoOn ? t("on") : t("off")} |
+          {t("screen")}: {isScreenSharing ? t("sharing") : t("off")} |
+          {t("attempts")}: {connectionAttempts}
         </Typography>
       </Box>
     </Box>

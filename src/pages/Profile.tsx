@@ -83,11 +83,11 @@ function Profile() {
         updated_at: new Date(),
       });
       await setLocale(language as "en" | "ar");
-      setMessage("Profile updated successfully!");
+      setMessage(t("profile_updated_success"));
       setOpen(true);
     } catch (error) {
       console.error("Failed to update profile:", error);
-      setMessage("Failed to update profile. Please try again.");
+      setMessage(t("profile_update_failed"));
       setOpen(true);
     } finally {
       setSaving(false);
@@ -115,35 +115,35 @@ function Profile() {
       <Typography variant="h5" gutterBottom>{t("my_profile")}</Typography>
       
       <Box sx={{ maxWidth: 520, mb: 4 }}>
-        <TextField label="Full Name" fullWidth margin="normal" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        <TextField label="Age" type="number" fullWidth margin="normal" value={age} onChange={(e) => setAge(e.target.value)} />
-        <TextField label="Phone Number" fullWidth margin="normal" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+        <TextField label={t("full_name")} fullWidth margin="normal" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <TextField label={t("age")} type="number" fullWidth margin="normal" value={age} onChange={(e) => setAge(e.target.value)} />
+        <TextField label={t("phone_number")} fullWidth margin="normal" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
         <TextField select label={t("language")} fullWidth margin="normal" value={language} onChange={(e) => setLanguage(e.target.value)}>
           <MenuItem value="en">English</MenuItem>
           <MenuItem value="ar">العربية</MenuItem>
         </TextField>
         <Button variant="contained" sx={{ mt: 2 }} onClick={save} disabled={saving}>
-          {saving ? "Saving..." : t("save")}
+          {saving ? t("signing_in") : t("save")}
         </Button>
       </Box>
 
       {userRole === "interpreter" && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" gutterBottom>Your Ratings</Typography>
+          <Typography variant="h5" gutterBottom>{t("your_ratings")}</Typography>
           
           {averageRating > 0 ? (
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Average Rating: {renderStars(Math.round(averageRating))} {averageRating}/5
+                {t("average_rating")}: {renderStars(Math.round(averageRating))} {averageRating}/5
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Based on {ratings.length} {ratings.length === 1 ? 'rating' : 'ratings'}
+                {t("based_on_ratings").replace("{count}", ratings.length.toString())}
               </Typography>
             </Paper>
           ) : (
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="body1" color="text.secondary">
-                No ratings yet
+                {t("no_ratings_yet")}
               </Typography>
             </Paper>
           )}
@@ -151,7 +151,7 @@ function Profile() {
           {ratings.length > 0 && (
             <Box>
               <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                Recent Reviews ({ratings.length})
+                {t("recent_reviews").replace("{count}", ratings.length.toString())}
               </Typography>
               <Stack spacing={2}>
                 {ratings.map((rating, index) => (
@@ -159,7 +159,7 @@ function Profile() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       {renderStars(rating.stars)}
                       <Typography variant="body2" color="text.secondary">
-                        {rating.created_at?.toDate ? new Date(rating.created_at.toDate()).toLocaleDateString() : 'Recently'}
+                        {rating.created_at?.toDate ? new Date(rating.created_at.toDate()).toLocaleDateString() : t("recently")}
                       </Typography>
                     </Box>
                     {rating.feedback && rating.feedback.trim() && (

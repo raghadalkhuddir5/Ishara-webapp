@@ -22,13 +22,40 @@ if ('serviceWorker' in navigator) {
 }
 
 function ThemedApp() {
-  const { direction } = useI18n();
+  const { direction, locale } = useI18n();
+  
+  // Update document language attribute
+  React.useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+  
   const theme = createTheme({
     direction,
     typography: {
-      fontFamily: direction === "rtl" ? "Noto Naskh Arabic, system-ui, Arial" : "Inter, system-ui, Arial",
+      fontFamily: direction === "rtl" ? "'Noto Naskh Arabic', system-ui, Arial" : "'Inter', system-ui, Arial",
+    },
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            ...(direction === "rtl" && {
+              fontFamily: "'Noto Naskh Arabic', system-ui, Arial",
+            }),
+          },
+        },
+      },
+      MuiTypography: {
+        styleOverrides: {
+          root: {
+            ...(direction === "rtl" && {
+              fontFamily: "'Noto Naskh Arabic', system-ui, Arial",
+            }),
+          },
+        },
+      },
     },
   });
+  
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

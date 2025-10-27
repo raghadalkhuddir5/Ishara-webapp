@@ -3,10 +3,12 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { CircularProgress, Box } from "@mui/material";
+import { CircularProgress, Box, Typography } from "@mui/material";
+import { useI18n } from "../context/I18nContext";
 
 function ProtectedRoute() {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
   const [role, setRole] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -32,8 +34,11 @@ function ProtectedRoute() {
   if (loading || checking) {
     console.log("⏳ Waiting... loading:", loading, "checking:", checking);
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", flexDirection: "column" }}>
         <CircularProgress />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          {t("loading")}
+        </Typography>
       </Box>
     );
   }
@@ -48,7 +53,7 @@ function ProtectedRoute() {
   if (role === "deaf_mute") return <Navigate to="/dashboard/deaf-mute" replace />;
   if (role === "interpreter") return <Navigate to="/dashboard/interpreter" replace />;
 
-  return <p>⚠️ No role found in Firestore. Check user doc.</p>;
+  return <Typography variant="body1" color="error">{t("no_role_found")}</Typography>;
 }
 
 export default ProtectedRoute;

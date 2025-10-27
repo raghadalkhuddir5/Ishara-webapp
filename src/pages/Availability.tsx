@@ -71,11 +71,11 @@ function Availability() {
     setMessage("");
         try {
           await setDoc(doc(db, "interpreters", user.uid), { availability: config }, { merge: true });
-          setMessage("Availability updated successfully!");
+          setMessage(t("availability_updated"));
           setOpen(true);
         } catch (e) {
           console.error("Failed to save availabilityConfig", e);
-          setMessage("Failed to save availability. Please check your internet or Firestore rules.");
+          setMessage(t("availability_update_failed"));
           setOpen(true);
         } finally {
           setSaving(false);
@@ -107,7 +107,7 @@ function Availability() {
       console.log("📝 Data to save:", interpreterData);
       await setDoc(doc(db, "interpreters", user.uid), interpreterData);
       console.log("✅ Interpreter document created successfully");
-      alert("Interpreter profile created successfully!");
+      alert(t("signup_success"));
     } catch (e) {
       console.error("❌ Failed to create interpreter doc:", e);
       console.error("Error details:", e);
@@ -130,7 +130,7 @@ function Availability() {
     return (
       <Box>
         <Typography variant="h5" gutterBottom>{t("weekly_availability")}</Typography>
-        <Typography>Loading...</Typography>
+        <Typography>{t("loading")}</Typography>
       </Box>
     );
   }
@@ -162,9 +162,9 @@ function Availability() {
         </Stack>
       ) : (
         <Box>
-          <Typography>No interpreter profile found. Click below to create one:</Typography>
+          <Typography>{t("no_interpreter_profile_found")}</Typography>
           <Button variant="contained" onClick={createInterpreterDoc} sx={{ mt: 2 }}>
-            Create Interpreter Profile
+            {t("create_interpreter_profile")}
           </Button>
         </Box>
       )}
@@ -178,5 +178,3 @@ function Availability() {
 }
 
 export default Availability;
-
-

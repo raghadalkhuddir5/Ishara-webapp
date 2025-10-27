@@ -38,7 +38,8 @@ function BookSession() {
     const target = mode === "immediate" ? now : (date && time ? new Date(`${date}T${time}:00`) : null);
     if (!target) return;
     if (target < now) {
-      alert("Please choose a future date/time");
+      setMessage(t("select_future_date_time"));
+      setOpen(true);
       return;
     }
     // Query interpreters collection directly
@@ -63,18 +64,24 @@ function BookSession() {
         });
       }
     }
+    
+    if (result.length === 0) {
+      setMessage(t("no_available_interpreters"));
+      setOpen(true);
+    }
+    
     setMatchingInterpreters(result);
   };
 
   const requestSession = async (interpreterId: string) => {
     if (!user) {
-      setMessage("Please log in to book a session");
+      setMessage(t("please_login_to_book_session"));
       setOpen(true);
       return;
     }
     
     if (!interpreterId) {
-      setMessage("Please select an interpreter");
+      setMessage(t("please_select_interpreter"));
       setOpen(true);
       return;
     }
@@ -85,13 +92,13 @@ function BookSession() {
       const scheduled = mode === "immediate" ? now : (date && time ? new Date(`${date}T${time}:00`) : now);
       
       if (scheduled < now) {
-        setMessage("Please choose a future date/time");
+        setMessage(t("select_future_date_time"));
         setOpen(true);
         return;
       }
       
       if (mode === "scheduled" && (!date || !time)) {
-        setMessage("Please select both date and time for scheduled sessions");
+        setMessage(t("select_date_and_time_for_scheduled"));
         setOpen(true);
         return;
       }
@@ -107,11 +114,11 @@ function BookSession() {
         reminderSent: false,
         is_rated: false
       });
-      setMessage("Session reserved successfully! Check 'My Sessions' for updates.");
+      setMessage(t("session_booked"));
       setOpen(true);
     } catch (e) {
       console.error("Failed to create session", e);
-      setMessage("Failed to reserve session. Please try again.");
+      setMessage(t("session_booking_failed"));
       setOpen(true);
     } finally {
       setBooking(false);
@@ -164,7 +171,7 @@ function BookSession() {
                     </Box>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      No ratings yet
+                      {t("no_ratings_yet")}
                     </Typography>
                   )}
                 </Box>
@@ -173,7 +180,7 @@ function BookSession() {
                   onClick={() => requestSession(i.id)}
                   disabled={booking}
                 >
-                  {booking ? "Reserving..." : t("reserve")}
+                  {booking ? t("signing_in") : t("reserve")}
                 </Button>
               </Stack>
             ))}
@@ -199,5 +206,3 @@ function BookSession() {
 }
 
 export default BookSession;
-
-

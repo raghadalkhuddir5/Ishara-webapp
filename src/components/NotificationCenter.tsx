@@ -34,6 +34,7 @@ import {
   deleteNotification
 } from '../services/notificationService';
 import type { NotificationData } from '../types/services';
+import { useI18n } from '../context/I18nContext';
 
 interface NotificationCenterProps {
   maxNotifications?: number;
@@ -45,6 +46,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   showMarkAllRead = true 
 }) => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -73,11 +75,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setUnreadCount(unread);
     } catch (err) {
       console.error('Error loading notifications:', err);
-      setError('Failed to load notifications');
+      setError(t("failed_to_load_notifications"));
     } finally {
       setLoading(false);
     }
-  }, [user, maxNotifications]);
+  }, [user, maxNotifications, t]);
 
   useEffect(() => {
     loadNotifications();
@@ -162,10 +164,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return t("just_now");
+    if (diffMins < 60) return t("minutes_ago").replace("{minutes}", diffMins.toString());
+    if (diffHours < 24) return t("hours_ago").replace("{hours}", diffHours.toString());
+    if (diffDays < 7) return t("days_ago").replace("{days}", diffDays.toString());
     return date.toLocaleDateString();
   };
 
@@ -182,7 +184,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
       <Alert severity="error" sx={{ m: 2 }}>
         {error}
         <Button size="small" onClick={loadNotifications} sx={{ ml: 1 }}>
-          Retry
+          {t("retry")}
         </Button>
       </Alert>
     );
@@ -197,12 +199,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <NotificationsIcon />
             </Badge>
             <Typography variant="h6" sx={{ ml: 1 }}>
-              Notifications
+              {t("notifications")}
             </Typography>
           </Box>
           {showMarkAllRead && unreadCount > 0 && (
             <Button size="small" onClick={handleMarkAllAsRead}>
-              Mark all read
+              {t("mark_all_read")}
             </Button>
           )}
         </Box>
@@ -212,7 +214,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         <Box sx={{ p: 3, textAlign: 'center' }}>
           <NotificationsIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
           <Typography variant="body2" color="text.secondary">
-            No notifications yet
+            {t("no_notifications_yet")}
           </Typography>
         </Box>
       ) : (
@@ -235,7 +237,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         {notification.title}
                       </Typography>
                       <Chip
-                        label={notification.type.replace('_', ' ')}
+                        label={t(notification.type.replace('_', ' '))}
                         size="small"
                         color={getNotificationColor(notification.type)}
                         variant="outlined"

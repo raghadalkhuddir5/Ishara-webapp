@@ -1,4 +1,4 @@
-import { AppBar, Toolbar, Typography, Button, Box, MenuItem, Select, IconButton, Popover, Badge } from "@mui/material";
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Popover, Badge } from "@mui/material";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -9,11 +9,12 @@ import { useI18n } from "../context/I18nContext";
 import { Notifications as NotificationsIcon } from "@mui/icons-material";
 import NotificationCenter from "./NotificationCenter";
 import { getUnreadNotificationCount } from "../services/notificationService";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 function AppLayout() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale } = useI18n();
   const [role, setRole] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLButtonElement | null>(null);
@@ -80,7 +81,7 @@ function AppLayout() {
               <Button component={Link} to="/interpreter/sessions">{t("my_sessions")}</Button>
             </>
           )}
-              <Button component={Link} to="/profile">{t("profile")}</Button>
+          <Button component={Link} to="/profile">{t("profile")}</Button>
           
           {/* Notification Center */}
           <IconButton
@@ -109,10 +110,11 @@ function AppLayout() {
             <NotificationCenter maxNotifications={10} />
           </Popover>
           
-          <Select size="small" value={locale} onChange={(e) => setLocale(e.target.value as "en" | "ar")} sx={{ mx: 1 }}>
-            <MenuItem value="en">English</MenuItem>
-            <MenuItem value="ar">العربية</MenuItem>
-          </Select>
+          {/* Language Switcher */}
+          <Box sx={{ mx: 1 }}>
+            <LanguageSwitcher />
+          </Box>
+          
           <Button onClick={handleLogout} color="error">{t("logout")}</Button>
         </Toolbar>
       </AppBar>
@@ -124,5 +126,3 @@ function AppLayout() {
 }
 
 export default AppLayout;
-
-

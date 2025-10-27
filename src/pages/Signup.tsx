@@ -63,13 +63,13 @@ function Signup() {
       console.error("Signup error:", error);
       
       if (error.code === 'auth/email-already-in-use') {
-        setError("This email is already registered. Try logging in instead, or use a different email.");
+        setError(t("signup_failed_email_exists"));
       } else if (error.code === 'auth/weak-password') {
-        setError("Password should be at least 6 characters long.");
+        setError(t("password_should_be_at_least_6_characters"));
       } else if (error.code === 'auth/invalid-email') {
-        setError("Please enter a valid email address.");
+        setError(t("login_failed_invalid_email"));
       } else {
-        setError(error.message || "Signup failed. Please try again.");
+        setError(error.message || t("signup_failed_generic"));
       }
     } finally {
       setIsLoading(false);
@@ -119,11 +119,11 @@ function Signup() {
       console.error("Google signup error:", error);
       
       if (error.code === 'auth/popup-closed-by-user') {
-        setError("Sign-up was cancelled. Please try again.");
+        setError(t("google_login_cancelled"));
       } else if (error.code === 'auth/popup-blocked') {
-        setError("Popup was blocked by your browser. Please allow popups and try again.");
+        setError(t("google_login_blocked"));
       } else {
-        setError(error.message || "Google sign-up failed. Please try again.");
+        setError(error.message || t("google_login_failed"));
       }
     } finally {
       setIsLoading(false);
@@ -186,18 +186,18 @@ function Signup() {
           />
         }
       >
-        {isLoading ? "Creating Account..." : "Continue with Google"}
+        {isLoading ? t("signing_in") : t("continue_with_google")}
       </Button>
 
       <Divider sx={{ my: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          or
+          {t("or")}
         </Typography>
       </Divider>
 
       {/* Email/Password Form */}
       <TextField
-        label="Full Name"
+        label={t("full_name")}
         fullWidth
         margin="normal"
         value={fullName}
@@ -225,7 +225,7 @@ function Signup() {
       />
 
       <TextField
-        label="Age"
+        label={t("age")}
         type="number"
         fullWidth
         margin="normal"
@@ -235,7 +235,7 @@ function Signup() {
       />
 
       <TextField
-        label="Phone Number"
+        label={t("phone_number")}
         fullWidth
         margin="normal"
         value={phoneNumber}
@@ -250,7 +250,7 @@ function Signup() {
         onClick={handleSignup}
         disabled={isLoading}
       >
-        {isLoading ? "Creating Account..." : t("create_account")}
+        {isLoading ? t("signing_in") : t("create_account")}
       </Button>
     </Box>
   );

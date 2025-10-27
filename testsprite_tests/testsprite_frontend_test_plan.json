@@ -1,0 +1,486 @@
+[
+  {
+    "id": "TC001",
+    "title": "Authentication with Email and Password - Success",
+    "description": "Verify that a user can successfully log in using valid email and password credentials.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Input valid registered email address and correct password."
+      },
+      {
+        "type": "action",
+        "description": "Click the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is redirected to their respective role-based dashboard."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Authentication with Email and Password - Failure",
+    "description": "Verify that login fails with incorrect email or password and an appropriate error message is shown.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Input wrong email or password."
+      },
+      {
+        "type": "action",
+        "description": "Click the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that login is denied and error message indicating invalid credentials is displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Authentication using Google Sign-in - Success",
+    "description": "Verify that a user can successfully authenticate via Google sign-in and is redirected to their dashboard.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Click on the 'Sign in with Google' button."
+      },
+      {
+        "type": "action",
+        "description": "Complete Google OAuth sign-in flow with a valid Google account."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that user is authenticated and redirected to the appropriate role-based dashboard."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "User Registration with Valid Data",
+    "description": "Verify new users can successfully sign up by providing valid details including email, password, full name, and role selection.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the signup page."
+      },
+      {
+        "type": "action",
+        "description": "Input valid email, strong password, full name, and select role as deaf/mute or interpreter."
+      },
+      {
+        "type": "action",
+        "description": "Submit the signup form."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user account is created and user is redirected to their dashboard."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "User Registration with Missing Fields",
+    "description": "Verify that signup fails with missing required fields and appropriate validation messages appear.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the signup page."
+      },
+      {
+        "type": "action",
+        "description": "Submit the signup form with missing email or password or role."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that validation errors are displayed for required missing fields."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Immediate Session Booking by Deaf/Mute User",
+    "description": "Verify deaf/mute users can successfully book an immediate session with an available interpreter.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as deaf/mute user."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the session booking page."
+      },
+      {
+        "type": "action",
+        "description": "Select an interpreter and choose session type as 'immediate'."
+      },
+      {
+        "type": "action",
+        "description": "Submit the booking request."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the session request is sent and interpreter receives notification."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Scheduled Session Booking by Deaf/Mute User",
+    "description": "Verify deaf/mute users can book a session for a future scheduled time with an interpreter.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as deaf/mute user."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to session booking page."
+      },
+      {
+        "type": "action",
+        "description": "Select interpreter and choose 'scheduled' session with a valid future datetime."
+      },
+      {
+        "type": "action",
+        "description": "Submit the booking."
+      },
+      {
+        "type": "assertion",
+        "description": "Check the session is created and interpreter receives the session request with scheduled time."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Interpreter Accepts Session Request",
+    "description": "Verify that interpreters can accept pending session requests and the user is notified.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as an interpreter."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to session requests page."
+      },
+      {
+        "type": "action",
+        "description": "Select a pending session request and click 'Accept'."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the session status updates and deaf/mute user receives acceptance notification."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Interpreter Rejects Session Request",
+    "description": "Verify that interpreters can reject session requests and the user is notified accordingly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as interpreter."
+      },
+      {
+        "type": "action",
+        "description": "Go to session requests page."
+      },
+      {
+        "type": "action",
+        "description": "Reject a pending session request."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that session is marked rejected and deaf/mute user is notified."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Join Video Call via PeerJS",
+    "description": "Verify both deaf/mute user and interpreter can join the video call session successfully using PeerJS peer IDs.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "After session acceptance, both parties click join call."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that PeerJS establishes connection and both audio and video streams are active."
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Video Call Controls Functionality",
+    "description": "Verify mute/unmute audio, toggle camera on/off, screen sharing, and end call controls work as intended during a video call.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "During an active video call, test mute and unmute audio buttons."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm audio is muted and unmuted correctly for both participants."
+      },
+      {
+        "type": "action",
+        "description": "Toggle camera off and on."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify video feed is disabled and re-enabled accordingly."
+      },
+      {
+        "type": "action",
+        "description": "Activate screen sharing."
+      },
+      {
+        "type": "assertion",
+        "description": "Check shared screen is visible to the other participant."
+      },
+      {
+        "type": "action",
+        "description": "Click the end call button."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the call disconnects gracefully for both parties."
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Automatic Cleanup on Video Call Error or Disconnect",
+    "description": "Verify the system handles video call errors and disconnections gracefully and performs cleanup of resources.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate network interruption during a video call."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error is logged and user is shown error notification."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that the call resources are released automatically and UI resets to pre-call state."
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Interpreter Availability Schedule Management",
+    "description": "Verify that interpreters can view, set, update, and save their weekly availability schedule.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as interpreter."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to availability settings page."
+      },
+      {
+        "type": "action",
+        "description": "Set availability for selected days and mark full-day or specific time slots."
+      },
+      {
+        "type": "action",
+        "description": "Save the updates."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm saved availability is persisted and displayed correctly on reload."
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "In-app and Push Notifications for Session Updates",
+    "description": "Verify that users receive timely in-app and push notifications for booking confirmations, session start reminders, and updates.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform booking of a session."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify interpreter receives notification of new session request."
+      },
+      {
+        "type": "action",
+        "description": "Accept the session as interpreter."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify deaf/mute user receives acceptance notification."
+      },
+      {
+        "type": "assertion",
+        "description": "At scheduled session time, verify both users receive reminders."
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Rating and Feedback Submission Post Session",
+    "description": "Verify that deaf/mute users can rate and provide feedback for interpreters after session completion and that ratings are saved.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Complete a video session between deaf/mute user and interpreter."
+      },
+      {
+        "type": "action",
+        "description": "As deaf/mute user, open rating modal and submit a star rating and optional feedback."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm rating and feedback are saved and retrievable."
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Role-based Dashboard Displays Correct Information",
+    "description": "Verify that the dashboard displays accurate session information, notifications, and summaries tailored to deaf/mute users and interpreters respectively.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as deaf/mute user."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard shows upcoming sessions, session history, and notifications relevant to deaf/mute user."
+      },
+      {
+        "type": "action",
+        "description": "Log out and log in as interpreter."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard shows pending requests, accepted sessions, availability status, and relevant notifications for interpreter."
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Migration Validation from Agora to PeerJS - Video Call Stability",
+    "description": "Verify that migration to PeerJS is successful and video calling works reliably over stable peer-to-peer connections without Agora dependencies.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Initiate multiple video call sessions between users."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm calls connect successfully, maintain stable video and audio, and no Agora SDK is involved."
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Session Booking with Invalid Scheduled Time",
+    "description": "Verify that the system rejects session booking attempts with scheduled times in the past or invalid format and shows appropriate validation errors.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to book a scheduled session with a past datetime or invalid date format."
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that the booking fails and error message specifies invalid scheduled time."
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Notification Read Status Update",
+    "description": "Verify that users can mark notifications as read and the read status updates persistently.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access notification center."
+      },
+      {
+        "type": "action",
+        "description": "Mark a notification as read."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that notification status is updated and does not appear as unread afterwards."
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Concurrent Session Request Handling",
+    "description": "Verify system correctly handles multiple simultaneous session requests sent to a single interpreter with consistent state updates.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simultaneously book multiple sessions with the same interpreter from different deaf/mute users."
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure interpreter sees all pending requests without conflict and can accept/reject them individually."
+      }
+    ]
+  }
+]

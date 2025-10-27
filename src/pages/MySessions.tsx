@@ -98,6 +98,7 @@ function MySessions() {
     if (s === "requested") return t("status_requested");
     if (s === "confirmed") return t("status_confirmed");
     if (s === "cancelled") return t("status_cancelled");
+    if (s === "completed") return t("status_completed");
     return s;
   };
 
@@ -106,11 +107,11 @@ function MySessions() {
     setCancellingId(id);
     try {
       await updateDoc(doc(db, "sessions", id), { status: "cancelled" });
-      setMessage("Session cancelled successfully!");
+      setMessage(t("session_cancelled_success"));
       setOpen(true);
     } catch (e) {
       console.error("Cancel failed", e);
-      setMessage("Failed to cancel session. Please try again.");
+      setMessage(t("session_cancel_failed"));
       setOpen(true);
     } finally {
       setCancellingId(null);
@@ -126,12 +127,12 @@ function MySessions() {
         setSelectedSession(session);
         setShowRatingModal(true);
       } else {
-        setMessage("You cannot rate this session. It may already be rated or not completed.");
+        setMessage(t("cannot_rate_session"));
         setOpen(true);
       }
     } catch (error) {
       console.error('Failed to check if session can be rated:', error);
-      setMessage("Failed to check rating eligibility. Please try again.");
+      setMessage(t("rating_check_failed"));
       setOpen(true);
     }
   };
@@ -144,7 +145,7 @@ function MySessions() {
   const handleRatingSubmitSuccess = () => {
     setShowRatingModal(false);
     setSelectedSession(null);
-    setMessage("Rating submitted successfully!");
+    setMessage(t("rating_submitted_success"));
     setOpen(true);
   };
 
@@ -186,7 +187,7 @@ function MySessions() {
                   onClick={() => cancelSession(s.id, s.status)}
                   disabled={cancellingId === s.id}
                 >
-                  {cancellingId === s.id ? "Cancelling..." : "Cancel"}
+                  {cancellingId === s.id ? t("signing_in") : t("cancel")}
                 </Button>
               )}
               {s.status === "confirmed" && (() => {
@@ -204,7 +205,7 @@ function MySessions() {
                   </Button>
                 ) : (
                   <Chip 
-                    label="Expired" 
+                    label={t("expired")} 
                     color="error" 
                     variant="outlined"
                     size="small"
@@ -216,7 +217,7 @@ function MySessions() {
                   {s.is_rated ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip 
-                        label="Rated" 
+                        label={t("rated")} 
                         color="success" 
                         variant="outlined"
                         size="small"
@@ -231,7 +232,7 @@ function MySessions() {
                       onClick={() => handleRateSession(s)}
                       size="small"
                     >
-                      Rate This Session
+                      {t("rate_this_session")}
                     </Button>
                   )}
                 </Box>
@@ -248,7 +249,7 @@ function MySessions() {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert 
-          severity={message.includes("successfully") ? "success" : "error"} 
+          severity={message.includes("successfully") || message.includes(t("success")) ? "success" : "error"} 
           onClose={() => setOpen(false)}
         >
           {message}
@@ -270,5 +271,3 @@ function MySessions() {
 }
 
 export default MySessions;
-
-

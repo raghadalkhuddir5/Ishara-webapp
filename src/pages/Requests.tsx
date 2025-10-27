@@ -79,7 +79,7 @@ function Requests() {
           await createSessionCancelledNotification(
             sessionData.user_id, 
             id, 
-            'Session was cancelled by the interpreter'
+            t("session_cancelled_by_interpreter")
           );
           console.log('Session cancelled notification created');
         } catch (error) {
@@ -89,11 +89,11 @@ function Requests() {
       }
       
       const action = status === "confirmed" ? "accepted" : "rejected";
-      setMessage(`Session ${action} successfully!`);
+      setMessage(status === "confirmed" ? t("request_accepted") : t("request_rejected"));
       setOpen(true);
     } catch (e) {
       console.error(`Failed to update session status to ${status}:`, e);
-      setMessage(`Failed to ${status === "confirmed" ? "accept" : "reject"} session. Please try again.`);
+      setMessage(t("request_action_failed"));
       setOpen(true);
     } finally {
       setSavingId(null);
@@ -106,12 +106,12 @@ function Requests() {
         {items.map((s) => (
           <Stack key={s.id} direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" sx={{ border: "1px solid #ddd", p: 1, borderRadius: 1 }}>
             <Typography sx={{ minWidth: 240 }}>{new Date(s.scheduled_time).toLocaleString()}</Typography>
-            <Typography sx={{ minWidth: 120 }}>{s.status}</Typography>
+            <Typography sx={{ minWidth: 120 }}>{t(`status_${s.status}`)}</Typography>
             <Box sx={{ flexGrow: 1 }} />
             {s.status === "requested" && (
               <>
-                <Button variant="contained" onClick={() => updateStatus(s.id, "confirmed")} disabled={savingId === s.id}>{t("accept")}</Button>
-                <Button color="error" onClick={() => updateStatus(s.id, "cancelled")} disabled={savingId === s.id}>{t("reject")}</Button>
+                <Button variant="contained" onClick={() => updateStatus(s.id, "confirmed")} disabled={savingId === s.id}>{savingId === s.id ? t("signing_in") : t("accept")}</Button>
+                <Button color="error" onClick={() => updateStatus(s.id, "cancelled")} disabled={savingId === s.id}>{savingId === s.id ? t("signing_in") : t("reject")}</Button>
               </>
             )}
           </Stack>
@@ -125,7 +125,7 @@ function Requests() {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert 
-          severity={message.includes("successfully") ? "success" : "error"} 
+          severity={message.includes("successfully") || message.includes(t("request_accepted")) ? "success" : "error"} 
           onClose={() => setOpen(false)}
         >
           {message}
@@ -136,5 +136,3 @@ function Requests() {
 }
 
 export default Requests;
-
-

@@ -1,0 +1,402 @@
+{
+  "meta": {
+    "project": "Ishara Video Calling Enhancement",
+    "date": "2025-10-20",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Ishara is a communication platform designed for deaf/mute users and interpreters, facilitating seamless video calls, session booking, and real-time interaction through an accessible and intuitive interface leveraging PeerJS for video communication.",
+  "core_goals": [
+    "Provide reliable and real-time video calling between deaf/mute users and interpreters using PeerJS.",
+    "Enable efficient session booking for immediate or scheduled interpreting services.",
+    "Allow interpreters to manage session requests (accept or reject) easily.",
+    "Allow interpreters to set their weekly availability to optimize session scheduling.",
+    "Implement a robust authentication system supporting email/password and Google sign-in.",
+    "Deliver in-app and push notifications for session updates and reminders.",
+    "Provide rating and feedback mechanisms for interpreters after session completion.",
+    "Offer role-based dashboards tailored for deaf/mute users and interpreters to manage their activities."
+  ],
+  "key_features": [
+    "Authentication via email/password and Google sign-in for secure user access.",
+    "Session booking system to book immediate or scheduled interpreting sessions.",
+    "PeerJS-based real-time video and audio calls with screen sharing and call controls (mute, camera toggle, end call).",
+    "Session requests management for interpreters to accept or reject bookings.",
+    "Availability management for interpreters to set and update weekly schedules.",
+    "In-app and push notification system to keep users informed of session updates.",
+    "Rating system allowing users to rate interpreters and provide feedback post-session.",
+    "Role-specific dashboards for deaf/mute users and interpreters to view and manage sessions.",
+    "Comprehensive error handling and automatic cleanup during video calls.",
+    "Migration from Agora to PeerJS for simplified signaling, free usage, and better reliability."
+  ],
+  "user_flow_summary": [
+    "User signs up or logs in using email/password or Google sign-in.",
+    "Deaf/mute user books an immediate or scheduled session with an interpreter.",
+    "Interpreter receives session requests and accepts or rejects them.",
+    "Upon confirmation, both parties join the video call room; PeerJS handles call setup using peer IDs.",
+    "During the call, users can mute/unmute audio, toggle the camera, and share their screen.",
+    "After the session ends, the user rates the interpreter and optionally provides feedback.",
+    "Interpreters manage their availability schedule through the availability interface.",
+    "Users receive notifications about session statuses and relevant updates through the notification center.",
+    "Users access their role-based dashboards to manage sessions and view activity summaries."
+  ],
+  "validation_criteria": [
+    "User authentication and authorization work seamlessly with email/password and Google sign-in.",
+    "Session booking functions correctly, allowing immediate and scheduled sessions.",
+    "Interpreters can accept or reject session requests, with updates reflected in real-time.",
+    "Video calls connect successfully using PeerJS with stable audio and video streams.",
+    "Call controls including mute, camera toggle, screen sharing, and call termination function as intended.",
+    "Availability schedules are correctly saved and retrieved for interpreters.",
+    "Notifications are received timely and accurately reflect session changes.",
+    "Ratings and feedback for sessions are recorded and retrievable.",
+    "Dashboards display accurate information tailored to the user role.",
+    "System handles errors gracefully, with logs and user feedback for issues during video calls.",
+    "Migration from Agora to PeerJS removes dependency on Agora SDK and enables stable peer-to-peer calls with simplified signaling."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "React",
+      "TypeScript",
+      "Vite",
+      "Firebase",
+      "Firestore",
+      "PeerJS",
+      "Material-UI"
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "User authentication with email/password and Google sign-in",
+        "files": [
+          "src/pages/Login.tsx",
+          "src/pages/Signup.tsx",
+          "src/context/AuthContext.tsx",
+          "src/firebase.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Authentication API",
+            "description": "Sign up and login functionality",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/login": {
+              "post": {
+                "summary": "Login with email and password",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "password": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/signup": {
+              "post": {
+                "summary": "Sign up new user",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "password": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "deaf_mute",
+                              "interpreter"
+                            ]
+                          },
+                          "fullName": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Session Booking",
+        "description": "Book immediate or scheduled sessions with interpreters",
+        "files": [
+          "src/pages/BookSession.tsx",
+          "src/pages/MySessions.tsx"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Session Booking API",
+            "description": "Book and manage sessions",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/book": {
+              "post": {
+                "summary": "Book a session",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "interpreterId": {
+                            "type": "string"
+                          },
+                          "scheduledTime": {
+                            "type": "string"
+                          },
+                          "sessionType": {
+                            "type": "string",
+                            "enum": [
+                              "immediate",
+                              "scheduled"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Video Calling",
+        "description": "Real-time video calling using PeerJS with audio/video support",
+        "files": [
+          "src/pages/CallRoom.tsx",
+          "src/components/VideoCall.tsx",
+          "src/services/peerjsService.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Video Call API",
+            "description": "Manage video calls",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/call/{sessionId}": {
+              "get": {
+                "summary": "Join a video call",
+                "parameters": [
+                  {
+                    "name": "sessionId",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Session Requests Management",
+        "description": "Interpreters accept or reject session requests",
+        "files": [
+          "src/pages/Requests.tsx",
+          "src/pages/InterpreterSessions.tsx"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Session Requests API",
+            "description": "Manage session requests",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/requests": {
+              "get": {
+                "summary": "Get pending session requests"
+              }
+            },
+            "/requests/{sessionId}/accept": {
+              "post": {
+                "summary": "Accept a session request"
+              }
+            },
+            "/requests/{sessionId}/reject": {
+              "post": {
+                "summary": "Reject a session request"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Notification System",
+        "description": "In-app notifications and push notifications for session updates",
+        "files": [
+          "src/components/NotificationCenter.tsx",
+          "src/services/notificationService.ts",
+          "src/services/fcmService.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Notification API",
+            "description": "Manage notifications",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/notifications": {
+              "get": {
+                "summary": "Get user notifications"
+              }
+            },
+            "/notifications/{notificationId}/read": {
+              "post": {
+                "summary": "Mark notification as read"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Availability Management",
+        "description": "Interpreters set their weekly availability schedule",
+        "files": [
+          "src/pages/Availability.tsx"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Availability API",
+            "description": "Manage interpreter availability",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/availability": {
+              "get": {
+                "summary": "Get interpreter availability"
+              },
+              "put": {
+                "summary": "Update availability",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "isAlwaysAvailable": {
+                            "type": "boolean"
+                          },
+                          "days": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Rating System",
+        "description": "Rate interpreters after session completion",
+        "files": [
+          "src/components/RatingModal.tsx",
+          "src/services/ratingService.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Rating API",
+            "description": "Manage ratings",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/ratings": {
+              "post": {
+                "summary": "Submit a rating",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "interpreterId": {
+                            "type": "string"
+                          },
+                          "stars": {
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "feedback": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Dashboard",
+        "description": "Role-based dashboards for deaf/mute users and interpreters",
+        "files": [
+          "src/pages/DashboardDeafMute.tsx",
+          "src/pages/DashboardInterpreter.tsx"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Dashboard API",
+            "description": "Dashboard views for different user roles",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/dashboard/deaf-mute": {
+              "get": {
+                "summary": "Get deaf/mute user dashboard"
+              }
+            },
+            "/dashboard/interpreter": {
+              "get": {
+                "summary": "Get interpreter dashboard"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -43,7 +43,7 @@ export default function CallRoom() {
         // Get session data
         const sessionDoc = await getDoc(doc(db, "sessions", sessionId));
         if (!sessionDoc.exists()) {
-          setError("Session not found");
+          setError(t("session_not_found"));
           return;
         }
         
@@ -61,14 +61,14 @@ export default function CallRoom() {
           console.error('  - User ID:', user.uid);
           console.error('  - Session user_id:', session.user_id);
           console.error('  - Session interpreter_id:', session.interpreter_id);
-          setError("You are not authorized to join this session");
+          setError(t("not_authorized_for_session"));
           return;
         }
         
         // Check if session is confirmed
         if (session.status !== 'confirmed') {
           console.error('Session not confirmed:', session.status);
-          setError("Session must be confirmed to start video call");
+          setError(t("session_must_be_confirmed"));
           return;
         }
         
@@ -82,7 +82,7 @@ export default function CallRoom() {
         
         if (isExpired) {
           console.error(' Session expired:', session.scheduled_time);
-          setError("This session has expired. Sessions can only be joined within 2 hours of the scheduled time.");
+          setError(t("session_expired"));
           return;
         }
         
@@ -110,14 +110,14 @@ export default function CallRoom() {
         
       } catch (err: any) {
         console.error("Failed to initialize call:", err);
-        setError(err.message || "Failed to load session data. Please check your internet connection and try again.");
+        setError(err.message || t("failed_to_load_session"));
       } finally {
         setIsLoading(false);
       }
     };
     
     initializeCall();
-  }, [sessionId, user, authLoading, navigate]);
+  }, [sessionId, user, authLoading, navigate, t]);
 
   const handleCallEnd = () => {
     // Navigate back to dashboard or session list
@@ -144,7 +144,7 @@ export default function CallRoom() {
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <CircularProgress size={60} />
         <Typography variant="h6" sx={{ mt: 2 }}>
-          {authLoading ? "Loading authentication..." : t("joining_call")}
+          {authLoading ? t("loading_authentication") : t("joining_call")}
         </Typography>
       </Box>
     );
@@ -157,7 +157,7 @@ export default function CallRoom() {
           {error}
         </Alert>
         <Button variant="contained" onClick={() => navigate("/dashboard")}>
-          Back to Dashboard
+          {t("back_to_dashboard")}
         </Button>
       </Box>
     );
@@ -167,10 +167,10 @@ export default function CallRoom() {
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto', mt: 4 }}>
         <Alert severity="error" sx={{ mb: 2 }}>
-          Session data not available
+          {t("session_data_not_available")}
         </Alert>
         <Button variant="contained" onClick={() => navigate("/dashboard")}>
-          Back to Dashboard
+          {t("back_to_dashboard")}
         </Button>
       </Box>
     );

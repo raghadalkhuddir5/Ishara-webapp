@@ -28,17 +28,17 @@ function Login() {
     } catch (error: unknown) {
       console.error("Login error:", error);
       
-      const errorMessage = error instanceof Error ? error.message : "Login failed. Please try again.";
+      const errorMessage = error instanceof Error ? error.message : t("login_failed_generic");
       const errorCode = (error as { code?: string }).code;
       
       if (errorCode === 'auth/user-not-found') {
-        setError("No account found with this email. Please sign up first.");
+        setError(t("login_failed_user_not_found"));
       } else if (errorCode === 'auth/wrong-password') {
-        setError("Incorrect password. Please try again.");
+        setError(t("login_failed_wrong_password"));
       } else if (errorCode === 'auth/invalid-email') {
-        setError("Please enter a valid email address.");
+        setError(t("login_failed_invalid_email"));
       } else if (errorCode === 'auth/too-many-requests') {
-        setError("Too many failed attempts. Please try again later.");
+        setError(t("login_failed_too_many_requests"));
       } else {
         setError(errorMessage);
       }
@@ -62,13 +62,13 @@ function Login() {
     } catch (error: unknown) {
       console.error("Google login error:", error);
       
-      const errorMessage = error instanceof Error ? error.message : "Google sign-in failed. Please try again.";
+      const errorMessage = error instanceof Error ? error.message : t("google_login_failed");
       const errorCode = (error as { code?: string }).code;
       
       if (errorCode === 'auth/popup-closed-by-user') {
-        setError("Sign-in was cancelled. Please try again.");
+        setError(t("google_login_cancelled"));
       } else if (errorCode === 'auth/popup-blocked') {
-        setError("Popup was blocked by your browser. Please allow popups and try again.");
+        setError(t("google_login_blocked"));
       } else {
         setError(errorMessage);
       }
@@ -114,12 +114,12 @@ function Login() {
           />
         }
       >
-        {isLoading ? "Signing In..." : "Continue with Google"}
+        {isLoading ? t("signing_in") : t("continue_with_google")}
       </Button>
 
       <Divider sx={{ my: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          or
+          {t("or")}
         </Typography>
       </Divider>
 
@@ -150,7 +150,7 @@ function Login() {
         onClick={handleLogin}
         disabled={isLoading}
       >
-        {isLoading ? "Signing In..." : t("login")}
+        {isLoading ? t("signing_in") : t("login")}
       </Button>
     </Box>
   );
