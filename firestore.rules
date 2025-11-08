@@ -80,6 +80,8 @@ service cloud.firestore {
       allow write: if isAuthenticated() && 
         resource.data.user_id == request.auth.uid;
       allow create: if isAuthenticated();
+      allow delete: if isAuthenticated() && 
+        resource.data.user_id == request.auth.uid;
     }
     
     // Legacy CALLS collection (for WebRTC signaling) - keep for backward compatibility

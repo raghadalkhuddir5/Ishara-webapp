@@ -3,6 +3,7 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   getDocs, 
   query, 
   where, 
@@ -107,10 +108,17 @@ export const getUserNotifications = async (userId: string, limit: number = 20, u
     }
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.slice(0, limit).map(doc => ({
-      notification_id: doc.id,
-      ...doc.data()
-    })) as NotificationData[];
+    // Filter out soft-deleted notifications (if any exist from previous implementation)
+    return querySnapshot.docs
+      .filter(doc => {
+        const data = doc.data();
+        return !data.deleted; // Exclude soft-deleted notifications
+      })
+      .slice(0, limit)
+      .map(doc => ({
+        notification_id: doc.id,
+        ...doc.data()
+      })) as NotificationData[];
   } catch (error) {
     console.error('Error getting user notifications:', error);
     throw error;
@@ -127,8 +135,10 @@ export const getUnreadNotificationCount = async (userId: string): Promise<number
     );
     
     const querySnapshot = await getDocs(q);
-    console.log('🔍 Unread count query for user:', userId, 'result:', querySnapshot.size);
-    return querySnapshot.size;
+    // Filter out soft-deleted notifications (if any exist from previous implementation)
+    const count = querySnapshot.docs.filter(doc => !doc.data().deleted).length;
+    console.log('🔍 Unread count query for user:', userId, 'result:', count);
+    return count;
   } catch (error) {
     console.error('Error getting unread notification count:', error);
     throw error;
@@ -138,14 +148,8 @@ export const getUnreadNotificationCount = async (userId: string): Promise<number
 // Delete a notification
 export const deleteNotification = async (notificationId: string): Promise<void> => {
   try {
-    // Note: Firestore doesn't have a delete function in the client SDK
-    // You would need to use a Cloud Function for this, or mark as deleted
-    await updateDoc(doc(db, 'notifications', notificationId), {
-      is_read: true,
-      read_at: serverTimestamp(),
-      // Add a deleted flag if you want to soft delete
-      deleted: true
-    });
+    // Actually delete the notification document from Firestore
+    await deleteDoc(doc(db, 'notifications', notificationId));
     console.log('Notification deleted');
   } catch (error) {
     console.error('Error deleting notification:', error);

@@ -1,11 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom"; 
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"; 
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import DashboardDeafMute from "./pages/DashboardDeafMute";
 import DashboardInterpreter from "./pages/DashboardInterpreter";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { Typography, Button, Box } from "@mui/material";
-import { useI18n } from "./context/I18nContext";
 import AppLayout from "./components/AppLayout";
 import RequireRole from "./components/RequireRole";
 import Profile from "./pages/Profile";
@@ -17,21 +16,10 @@ import InterpreterSessions from "./pages/InterpreterSessions";
 import CallRoom from "./pages/CallRoom";
 
 function App() {
-  const { t } = useI18n();
   return (
     <Router>
       <Routes>
-        <Route path="/" element={
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom>{t("app_title")}</Typography>
-            <Button component={Link} to="/signup" variant="contained" sx={{ mr: 2 }}>
-              {t("sign_up")}
-            </Button>
-            <Button component={Link} to="/login" variant="outlined">
-              {t("login")}
-            </Button>
-          </Box>
-        } />
+        <Route path="/" element={<Landing />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
 
