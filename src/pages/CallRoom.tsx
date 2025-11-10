@@ -21,6 +21,7 @@ export default function CallRoom() {
   const [sessionData, setSessionData] = useState<any>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [interpreterName, setInterpreterName] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
 
   useEffect(() => {
     console.log('CallRoom useEffect triggered:', { sessionId, user: user?.uid, authLoading });
@@ -88,7 +89,7 @@ export default function CallRoom() {
         
         console.log(' All checks passed, user authorized');
         
-        // Get interpreter name for rating modal
+        // Get interpreter name and user name
         try {
           const interpreterDoc = await getDoc(doc(db, "users", session.interpreter_id));
           if (interpreterDoc.exists()) {
@@ -100,6 +101,19 @@ export default function CallRoom() {
         } catch (err) {
           console.error('Failed to get interpreter name:', err);
           setInterpreterName(session.interpreter_id);
+        }
+
+        try {
+          const userDoc = await getDoc(doc(db, "users", session.user_id));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserName(userData.full_name || session.user_id);
+          } else {
+            setUserName(session.user_id);
+          }
+        } catch (err) {
+          console.error('Failed to get user name:', err);
+          setUserName(session.user_id);
         }
         
         // Create PeerJS call document if it doesn't exist
@@ -185,6 +199,8 @@ export default function CallRoom() {
         sessionId={sessionId!}
         currentUid={user!.uid}
         role={userRole}
+        interpreterName={interpreterName}
+        userName={userName}
         onCallEnd={handleCallEnd}
         onShowRatingModal={handleShowRatingModal}
       />
