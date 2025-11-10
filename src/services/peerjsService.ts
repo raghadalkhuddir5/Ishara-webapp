@@ -8,6 +8,34 @@ let mediaConnection: any = null;
 let localStream: MediaStream | null = null;
 let remoteStream: MediaStream | null = null;
 let isConnected = false;
+let isCameraEnabled = true; // Track camera state
+
+// Helper function to create a black video track
+const createBlackVideoTrack = (): MediaStreamTrack => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  
+  const stream = canvas.captureStream(30);
+  const track = stream.getVideoTracks()[0];
+  
+  // Keep drawing black frames
+  const drawFrame = () => {
+    if (ctx && track.readyState === 'live') {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      requestAnimationFrame(drawFrame);
+    }
+  };
+  drawFrame();
+  
+  return track;
+};
 
 // Initialize PeerJS peer with explicit peerId (deterministic per role)
 export const initPeer = async (peerId: string): Promise<string> => {
@@ -183,6 +211,7 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
     console.log('Media constraints:', constraints);
     
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    isCameraEnabled = video; // Initialize camera state
     console.log('✅ Camera and microphone access granted');
     console.log('Local stream tracks:', localStream.getTracks().map(track => ({
       kind: track.kind,
@@ -402,24 +431,85 @@ export const toggleCamera = async (): Promise<boolean> => {
     }
     
     const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      const enabled = !videoTrack.enabled;
-      videoTrack.enabled = enabled;
+    if (!videoTrack) {
+      return false;
+    }
+    
+    // Toggle the camera state
+    isCameraEnabled = !isCameraEnabled;
+    
+    if (!isCameraEnabled) {
+      // Disabling camera - replace with black track
+      console.log('Disabling camera - replacing with black track');
       
-      // If disabling camera, stop the track to turn off camera light
-      if (!enabled) {
-        videoTrack.stop();
-        console.log('Camera track stopped - camera light should turn off');
-      } else {
-        console.log('Camera enabled');
+      // Create black video track
+      const blackTrack = createBlackVideoTrack();
+      
+      // Remove old track from stream
+      localStream.removeTrack(videoTrack);
+      
+      // Stop the camera track to turn off camera light
+      videoTrack.stop();
+      
+      // Add black track to stream
+      localStream.addTrack(blackTrack);
+      
+      // Replace track in media connection if active
+      if (mediaConnection) {
+        const senders = mediaConnection.peerConnection.getSenders();
+        const sender = senders.find((s: RTCRtpSender) => 
+          s.track && s.track.kind === 'video'
+        );
+        if (sender) {
+          await sender.replaceTrack(blackTrack);
+        }
       }
       
-      console.log('Camera toggled:', enabled ? 'ON' : 'OFF');
-      return enabled;
+      console.log('Camera disabled - black track active');
+    } else {
+      // Enabling camera - get new camera stream
+      console.log('Enabling camera - getting new camera stream');
+      
+      // Get new camera stream
+      const cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        } as MediaTrackConstraints
+      });
+      
+      // Remove current video track (black track)
+      const currentVideoTrack = localStream.getVideoTracks()[0];
+      if (currentVideoTrack) {
+        localStream.removeTrack(currentVideoTrack);
+        currentVideoTrack.stop();
+      }
+      
+      // Add new camera track
+      const cameraVideoTrack = cameraStream.getVideoTracks()[0];
+      localStream.addTrack(cameraVideoTrack);
+      
+      // Replace track in media connection
+      if (mediaConnection) {
+        const senders = mediaConnection.peerConnection.getSenders();
+        const sender = senders.find((s: RTCRtpSender) => 
+          s.track && s.track.kind === 'video'
+        );
+        if (sender) {
+          await sender.replaceTrack(cameraVideoTrack);
+        }
+      }
+      
+      console.log('Camera enabled');
     }
-    return false;
+    
+    console.log('Camera toggled:', isCameraEnabled ? 'ON' : 'OFF');
+    return isCameraEnabled;
   } catch (error) {
     console.error('Failed to toggle camera:', error);
+    // Revert state on error
+    isCameraEnabled = !isCameraEnabled;
     return false;
   }
 };

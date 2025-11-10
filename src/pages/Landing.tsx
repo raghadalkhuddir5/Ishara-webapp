@@ -52,10 +52,11 @@ const Landing = () => {
                   fontWeight: 600, 
                   color: "#333", 
                   display: { xs: "none", sm: "block" },
-                  fontSize: { xs: "1rem", sm: "1.25rem" }
+                  fontSize: { xs: "1rem", sm: "1.25rem" },
+                  direction: direction,
                 }}
               >
-                ISHARA
+                {t("app_name")}
               </Typography>
             </Box>
 
@@ -673,8 +674,8 @@ const Landing = () => {
             <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, justifyContent: "center" }}>
                 <img src={logoImage} alt="Ishara Logo" style={{ height: isMobile ? "32px" : "40px" }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, color: "#333", fontSize: { xs: "1rem", md: "1.25rem" } }}>
-                  ISHARA
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#333", fontSize: { xs: "1rem", md: "1.25rem" }, direction: direction }}>
+                  {t("app_name")}
                 </Typography>
               </Box>
               <Box sx={{ display: "flex", gap: { xs: 1, md: 2 }, justifyContent: "center" }}>

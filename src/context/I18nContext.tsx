@@ -14,6 +14,7 @@ interface Translations {
 const translations: Record<Locale, Translations> = {
   en: {
     app_title: "Ishara Web App",
+    app_name: "ISHARA",
     welcome: "Welcome",
     sign_up: "Sign Up",
     login: "Login",
@@ -298,6 +299,7 @@ const translations: Record<Locale, Translations> = {
   },
   ar: {
     app_title: "منصة إشارة",
+    app_name: "إشارة",
     welcome: "مرحباً",
     sign_up: "إنشاء حساب",
     login: "تسجيل الدخول",
@@ -600,39 +602,65 @@ const I18nContext = createContext<I18nValue>({
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [locale, setLocaleState] = useState<Locale>("en");
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    // Try to load from localStorage first, then default to 'en'
+    const savedLocale = localStorage.getItem('app_locale') as Locale | null;
+    return (savedLocale === 'ar' || savedLocale === 'en') ? savedLocale : 'en';
+  });
 
   useEffect(() => {
     const load = async () => {
-      if (!user) return;
+      if (!user) {
+        // If no user, use localStorage value
+        const savedLocale = localStorage.getItem('app_locale') as Locale | null;
+        if (savedLocale === 'ar' || savedLocale === 'en') {
+          setLocaleState(savedLocale);
+        }
+        return;
+      }
       const snap = await getDoc(doc(db, "users", user.uid));
       const lang = (snap.exists() ? (snap.data() as { language?: string }).language : undefined) as Locale | undefined;
-      if (lang === "ar" || lang === "en") setLocaleState(lang);
+      if (lang === "ar" || lang === "en") {
+        setLocaleState(lang);
+        // Also save to localStorage
+        localStorage.setItem('app_locale', lang);
+      }
     };
     load();
   }, [user]);
 
   const setLocale = async (loc: Locale) => {
     setLocaleState(loc);
+    // Save to localStorage immediately for instant UI update
+    localStorage.setItem('app_locale', loc);
+    
+    // Also save to Firestore if user is logged in
     if (user) {
-      await updateDoc(doc(db, "users", user.uid), { language: loc });
+      try {
+        await updateDoc(doc(db, "users", user.uid), { language: loc });
+      } catch (error) {
+        console.error('Failed to save language preference to Firestore:', error);
+      }
     }
   };
 
   const direction = locale === "ar" ? "rtl" : "ltr";
-  const value = useMemo<I18nValue>(() => ({
-    locale,
-    direction,
-    t: (key) => {
-      const message = translations[locale]?.[key] || translations.en?.[key];
-      if (!message) {
-        console.warn(`Translation key "${key}" not found`);
-        return key; // Return the key itself as fallback
-      }
-      return message;
-    },
-    setLocale
-  }), [locale]);
+  const value = useMemo<I18nValue>(() => {
+    console.log('🌐 I18n context value updated, locale:', locale);
+    return {
+      locale,
+      direction,
+      t: (key) => {
+        const message = translations[locale]?.[key] || translations.en?.[key];
+        if (!message) {
+          console.warn(`Translation key "${key}" not found for locale "${locale}"`);
+          return key; // Return the key itself as fallback
+        }
+        return message;
+      },
+      setLocale
+    };
+  }, [locale, direction]);
 
   useEffect(() => {
     document.documentElement.lang = locale;

@@ -4,6 +4,7 @@ import {
   where, 
   onSnapshot, 
   doc,
+  getDoc,
   updateDoc,
   getDocs,
   Timestamp
@@ -33,8 +34,11 @@ class NotificationMonitor {
   private sessionUnsubscribeInterpreter: (() => void) | null = null;
   private sessionUnsubscribeUser: (() => void) | null = null;
   private reminderInterval: NodeJS.Timeout | null = null;
-  private processedSessions: Set<string> = new Set();
+  private processedNotifications: Map<string, Set<string>> = new Map(); // Track processed notifications by sessionId + type
   private currentUserId: string | null = null;
+  private isInitialLoadInterpreter: boolean = true; // Track if this is the initial snapshot load for interpreter listener
+  private isInitialLoadUser: boolean = true; // Track if this is the initial snapshot load for user listener
+  private processingLocks: Map<string, Promise<void>> = new Map(); // Prevent concurrent processing of same session
 
   constructor(userId?: string) {
     this.currentUserId = userId || null;
@@ -78,10 +82,32 @@ class NotificationMonitor {
     );
 
     this.sessionUnsubscribeInterpreter = onSnapshot(interpreterSessionsQuery, async (snapshot) => {
-      console.log('Interpreter sessions snapshot received:', snapshot.docs.length, 'documents');
+      console.log('Interpreter sessions snapshot received:', snapshot.docs.length, 'documents', 'fromCache:', snapshot.metadata.fromCache);
       
-      snapshot.docChanges().forEach(async (change) => {
+      // Skip initial load (from cache) - only process actual changes
+      if (snapshot.metadata.fromCache && this.isInitialLoadInterpreter) {
+        console.log('Skipping initial cache load for interpreter sessions');
+        this.isInitialLoadInterpreter = false;
+        return;
+      }
+      this.isInitialLoadInterpreter = false;
+      
+      // Only process if there are actual changes
+      if (snapshot.docChanges().length === 0) {
+        console.log('No changes in interpreter sessions snapshot');
+        return;
+      }
+      
+      // Process changes sequentially to avoid race conditions
+      for (const change of snapshot.docChanges()) {
         const sessionData = { id: change.doc.id, ...change.doc.data() } as SessionData;
+        
+        // Skip if already processing this session
+        const lockKey = `interpreter_${sessionData.id}_${change.type}`;
+        if (this.processingLocks.has(lockKey)) {
+          console.log('Already processing interpreter session change:', lockKey);
+          continue;
+        }
         
         console.log('📊 Interpreter session change detected:', {
           type: change.type,
@@ -92,17 +118,25 @@ class NotificationMonitor {
           status: sessionData.status
         });
         
-        console.log('✅ Processing interpreter session - current user is interpreter');
+        // Create processing lock
+        const processPromise = (async () => {
+          try {
+            if (change.type === 'added') {
+              // Only send notification to interpreter for new requests
+              await this.handleNewSessionRequest(sessionData);
+            } else if (change.type === 'modified') {
+              // Only send status change notifications to the user (deaf/mute)
+              // Interpreter doesn't need to be notified of their own status changes
+              console.log(' Interpreter session modified - no notification needed for interpreter');
+            }
+          } finally {
+            this.processingLocks.delete(lockKey);
+          }
+        })();
         
-        if (change.type === 'added') {
-          // Only send notification to interpreter for new requests
-          await this.handleNewSessionRequest(sessionData);
-        } else if (change.type === 'modified') {
-          // Only send status change notifications to the user (deaf/mute)
-          // Interpreter doesn't need to be notified of their own status changes
-          console.log(' Interpreter session modified - no notification needed for interpreter');
-        }
-      });
+        this.processingLocks.set(lockKey, processPromise);
+        await processPromise;
+      }
     }, (error) => {
       console.error('Error in interpreter session monitoring:', error);
     });
@@ -116,10 +150,32 @@ class NotificationMonitor {
     );
 
     this.sessionUnsubscribeUser = onSnapshot(userSessionsQuery, async (snapshot) => {
-      console.log(' User sessions snapshot received:', snapshot.docs.length, 'documents');
+      console.log(' User sessions snapshot received:', snapshot.docs.length, 'documents', 'fromCache:', snapshot.metadata.fromCache);
       
-      snapshot.docChanges().forEach(async (change) => {
+      // Skip initial load (from cache) - only process actual changes
+      if (snapshot.metadata.fromCache && this.isInitialLoadUser) {
+        console.log('Skipping initial cache load for user sessions');
+        this.isInitialLoadUser = false;
+        return;
+      }
+      this.isInitialLoadUser = false;
+      
+      // Only process if there are actual changes
+      if (snapshot.docChanges().length === 0) {
+        console.log('No changes in user sessions snapshot');
+        return;
+      }
+      
+      // Process changes sequentially to avoid race conditions
+      for (const change of snapshot.docChanges()) {
         const sessionData = { id: change.doc.id, ...change.doc.data() } as SessionData;
+        
+        // Skip if already processing this session
+        const lockKey = `user_${sessionData.id}_${change.type}`;
+        if (this.processingLocks.has(lockKey)) {
+          console.log('Already processing user session change:', lockKey);
+          continue;
+        }
         
         console.log(' User session change detected:', {
           type: change.type,
@@ -130,16 +186,24 @@ class NotificationMonitor {
           status: sessionData.status
         });
         
-        console.log(' Processing user session - current user is user');
+        // Create processing lock
+        const processPromise = (async () => {
+          try {
+            if (change.type === 'added') {
+              // User doesn't need notification for their own session creation
+              console.log(' User session created - no notification needed for user');
+            } else if (change.type === 'modified') {
+              // Only send status change notifications to the user (deaf/mute)
+              await this.handleSessionStatusChange(sessionData);
+            }
+          } finally {
+            this.processingLocks.delete(lockKey);
+          }
+        })();
         
-        if (change.type === 'added') {
-          // User doesn't need notification for their own session creation
-          console.log(' User session created - no notification needed for user');
-        } else if (change.type === 'modified') {
-          // Only send status change notifications to the user (deaf/mute)
-          await this.handleSessionStatusChange(sessionData, change.doc.metadata.fromCache);
-        }
-      });
+        this.processingLocks.set(lockKey, processPromise);
+        await processPromise;
+      }
     }, (error) => {
       console.error('Error in user session monitoring:', error);
     });
@@ -149,13 +213,20 @@ class NotificationMonitor {
   private async handleNewSessionRequest(sessionData: SessionData): Promise<void> {
     if (sessionData.status !== 'requested') return;
     
+    // Check if we've already processed this notification (in-memory check)
+    if (!this.processedNotifications.has(sessionData.id)) {
+      this.processedNotifications.set(sessionData.id, new Set());
+    }
+    if (this.processedNotifications.get(sessionData.id)?.has('session_request')) {
+      console.log('Session request notification already processed (in-memory):', sessionData.id);
+      return;
+    }
+    
     console.log(' New session request detected:', sessionData.id);
-    console.log(' Session data:', sessionData);
     
     try {
       // Create in-app notification for interpreter
-      console.log('Creating notification for interpreter:', sessionData.interpreter_id);
-      
+      // The createNotification function will check for duplicates in the database
       const notificationId = await createNotification({
         user_id: sessionData.interpreter_id,
         type: 'session_request',
@@ -168,45 +239,84 @@ class NotificationMonitor {
         priority: 'high'
       });
 
-      console.log(' New request notification created with ID:', notificationId);
+      // Only mark as processed if notification was actually created
+      if (notificationId) {
+        this.processedNotifications.get(sessionData.id)?.add('session_request');
+        console.log(' New request notification created with ID:', notificationId);
+      } else {
+        console.log(' Notification already exists in database, skipped:', sessionData.id);
+        // Still mark as processed to prevent retries
+        this.processedNotifications.get(sessionData.id)?.add('session_request');
+      }
     } catch (error) {
       console.error(' Error handling new session request:', error);
     }
   }
 
   // FLOW 2 & 3: Handle session status changes
-  private async handleSessionStatusChange(sessionData: SessionData, fromCache: boolean): Promise<void> {
-    // Skip if this is from cache (initial load)
-    if (fromCache) return;
+  private async handleSessionStatusChange(sessionData: SessionData): Promise<void> {
+    // Determine notification type based on status
+    let notificationType: string | null = null;
+    if (sessionData.status === 'confirmed') {
+      notificationType = 'session_confirmed';
+    } else if (sessionData.status === 'rejected') {
+      notificationType = 'session_cancelled'; // Using cancelled type for rejected
+    } else if (sessionData.status === 'cancelled') {
+      notificationType = 'session_cancelled';
+    }
     
-    // Skip if we've already processed this session
-    if (this.processedSessions.has(sessionData.id)) return;
+    if (!notificationType) {
+      console.log('No notification type for status:', sessionData.status);
+      return;
+    }
+    
+    // Check if we've already processed this notification type for this session (in-memory check)
+    if (!this.processedNotifications.has(sessionData.id)) {
+      this.processedNotifications.set(sessionData.id, new Set());
+    }
+    if (this.processedNotifications.get(sessionData.id)?.has(notificationType)) {
+      console.log('Notification already processed (in-memory):', sessionData.id, notificationType);
+      return;
+    }
     
     console.log(' Session status change detected:', sessionData.id, sessionData.status);
     
     try {
+      let notificationId: string = '';
       if (sessionData.status === 'confirmed') {
-        await this.handleSessionConfirmed(sessionData);
+        notificationId = await this.handleSessionConfirmed(sessionData);
+        if (notificationId) {
+          this.processedNotifications.get(sessionData.id)?.add('session_confirmed');
+        }
       } else if (sessionData.status === 'rejected') {
-        await this.handleSessionRejected(sessionData);
+        notificationId = await this.handleSessionRejected(sessionData);
+        if (notificationId) {
+          this.processedNotifications.get(sessionData.id)?.add('session_cancelled');
+        }
       } else if (sessionData.status === 'cancelled') {
-        await this.handleSessionCancelled(sessionData);
+        notificationId = await this.handleSessionCancelled(sessionData);
+        if (notificationId) {
+          this.processedNotifications.get(sessionData.id)?.add('session_cancelled');
+        }
       }
       
-      // Mark as processed
-      this.processedSessions.add(sessionData.id);
+      // Mark as processed even if notification already existed (to prevent retries)
+      if (!notificationId) {
+        this.processedNotifications.get(sessionData.id)?.add(notificationType);
+      }
     } catch (error) {
       console.error(' Error handling session status change:', error);
     }
   }
 
   // FLOW 2: Handle session confirmed
-  private async handleSessionConfirmed(sessionData: SessionData): Promise<void> {
+  private async handleSessionConfirmed(sessionData: SessionData): Promise<string> {
     console.log(' Session confirmed:', sessionData.id);
     
     try {
       // Create in-app notification for user
-      await createNotification({
+      // The createNotification function will check for duplicates in the database
+      const notificationId = await createNotification({
         user_id: sessionData.user_id,
         type: 'session_confirmed',
         title: 'Session Confirmed',
@@ -218,19 +328,26 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log(' Session confirmed notification sent to user');
+      if (notificationId) {
+        console.log(' Session confirmed notification sent to user:', notificationId);
+      } else {
+        console.log(' Session confirmed notification already exists, skipped');
+      }
+      return notificationId;
     } catch (error) {
       console.error(' Error handling session confirmed:', error);
+      return '';
     }
   }
 
   // FLOW 2: Handle session rejected
-  private async handleSessionRejected(sessionData: SessionData): Promise<void> {
+  private async handleSessionRejected(sessionData: SessionData): Promise<string> {
     console.log(' Session rejected:', sessionData.id);
     
     try {
       // Create in-app notification for user
-      await createNotification({
+      // The createNotification function will check for duplicates in the database
+      const notificationId = await createNotification({
         user_id: sessionData.user_id,
         type: 'session_cancelled',
         title: 'Session Rejected',
@@ -242,19 +359,26 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log('Session rejected notification sent to user');
+      if (notificationId) {
+        console.log('Session rejected notification sent to user:', notificationId);
+      } else {
+        console.log('Session rejected notification already exists, skipped');
+      }
+      return notificationId;
     } catch (error) {
       console.error(' Error handling session rejected:', error);
+      return '';
     }
   }
 
   // FLOW 3: Handle session cancelled
-  private async handleSessionCancelled(sessionData: SessionData): Promise<void> {
+  private async handleSessionCancelled(sessionData: SessionData): Promise<string> {
     console.log(' Session cancelled:', sessionData.id);
     
     try {
       // Create in-app notification for interpreter
-      await createNotification({
+      // The createNotification function will check for duplicates in the database
+      const notificationId = await createNotification({
         user_id: sessionData.interpreter_id,
         type: 'session_cancelled',
         title: 'Session Cancelled',
@@ -266,9 +390,15 @@ class NotificationMonitor {
         priority: 'medium'
       });
 
-      console.log(' Session cancelled notification sent to interpreter');
+      if (notificationId) {
+        console.log(' Session cancelled notification sent to interpreter:', notificationId);
+      } else {
+        console.log(' Session cancelled notification already exists, skipped');
+      }
+      return notificationId;
     } catch (error) {
       console.error(' Error handling session cancelled:', error);
+      return '';
     }
   }
 
@@ -308,14 +438,15 @@ class NotificationMonitor {
 
       const snapshot = await getDocs(sessionsQuery);
       
-      snapshot.docs.forEach(async (doc) => {
+      // Process sequentially to avoid race conditions
+      for (const doc of snapshot.docs) {
         const sessionData = { id: doc.id, ...doc.data() } as SessionData;
         
         // Only process sessions where the current user is involved
         if (sessionData.user_id === this.currentUserId || sessionData.interpreter_id === this.currentUserId) {
           await this.sendReminderNotification(sessionData);
         }
-      });
+      }
     } catch (error) {
       console.error(' Error checking reminders:', error);
     }
@@ -325,9 +456,26 @@ class NotificationMonitor {
   private async sendReminderNotification(sessionData: SessionData): Promise<void> {
     console.log(' Sending reminder for session:', sessionData.id);
     
+    // Check if reminder was already sent (double-check before sending)
+    const sessionRef = doc(db, 'sessions', sessionData.id);
+    const sessionDoc = await getDoc(sessionRef);
+    if (sessionDoc.exists() && sessionDoc.data().reminderSent) {
+      console.log('Reminder already sent for session:', sessionData.id);
+      return;
+    }
+    
+    // Check if we've already processed this reminder (in-memory check)
+    if (!this.processedNotifications.has(sessionData.id)) {
+      this.processedNotifications.set(sessionData.id, new Set());
+    }
+    if (this.processedNotifications.get(sessionData.id)?.has('session_reminder')) {
+      console.log('Reminder already processed (in-memory):', sessionData.id);
+      return;
+    }
+    
     try {
-      // Send to user
-      await createNotification({
+      // Send to user (createNotification will check for duplicates in database)
+      const userNotificationId = await createNotification({
         user_id: sessionData.user_id,
         type: 'session_reminder',
         title: 'Session Reminder',
@@ -339,8 +487,8 @@ class NotificationMonitor {
         priority: 'high'
       });
 
-      // Send to interpreter
-      await createNotification({
+      // Send to interpreter (createNotification will check for duplicates in database)
+      const interpreterNotificationId = await createNotification({
         user_id: sessionData.interpreter_id,
         type: 'session_reminder',
         title: 'Session Reminder',
@@ -352,13 +500,20 @@ class NotificationMonitor {
         priority: 'high'
       });
 
-      // Update session to mark reminder as sent
-      const sessionRef = doc(db, 'sessions', sessionData.id);
-      await updateDoc(sessionRef, {
-        reminderSent: true
-      });
-
-      console.log(' Reminder notifications sent for session:', sessionData.id);
+      // Only update session if at least one notification was created
+      if (userNotificationId || interpreterNotificationId) {
+        // Update session to mark reminder as sent
+        await updateDoc(sessionRef, {
+          reminderSent: true
+        });
+        // Mark as processed
+        this.processedNotifications.get(sessionData.id)?.add('session_reminder');
+        console.log(' Reminder notifications sent for session:', sessionData.id);
+      } else {
+        console.log(' Reminder notifications already exist, skipped');
+        // Still mark as processed to prevent retries
+        this.processedNotifications.get(sessionData.id)?.add('session_reminder');
+      }
     } catch (error) {
       console.error(' Error sending reminder notification:', error);
     }
@@ -369,13 +524,21 @@ class NotificationMonitor {
   public cleanup(): void {
     if (this.sessionUnsubscribeInterpreter) {
       this.sessionUnsubscribeInterpreter();
+      this.sessionUnsubscribeInterpreter = null;
     }
     if (this.sessionUnsubscribeUser) {
       this.sessionUnsubscribeUser();
+      this.sessionUnsubscribeUser = null;
     }
     if (this.reminderInterval) {
       clearInterval(this.reminderInterval);
+      this.reminderInterval = null;
     }
+    // Clear processed notifications when cleaning up
+    this.processedNotifications.clear();
+    this.processingLocks.clear();
+    this.isInitialLoadInterpreter = true;
+    this.isInitialLoadUser = true;
     console.log(' Notification monitoring stopped');
   }
 

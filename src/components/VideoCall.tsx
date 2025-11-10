@@ -300,17 +300,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ sessionId, currentUid, role, inte
       const enabled = await toggleCamera();
       setIsVideoOn(enabled);
       
-      // If camera was disabled and now enabled, restart it
-      if (enabled && !isVideoOn) {
-        console.log('Restarting camera...');
-        await restartCamera();
-        
-        // Update local video element with new stream
-        const localStream = getLocalStream();
-        if (localStream && localVideoRef.current) {
-          localVideoRef.current.srcObject = localStream;
-          console.log('Local video element updated with new stream');
-        }
+      // Update local video element with current stream
+      const localStream = getLocalStream();
+      if (localStream && localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+        console.log('Local video element updated');
       }
     } catch (error: unknown) {
       console.error('Failed to toggle camera:', error);

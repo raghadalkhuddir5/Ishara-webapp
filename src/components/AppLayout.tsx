@@ -99,10 +99,11 @@ function AppLayout() {
                 color: "#333", 
                 fontSize: { xs: "1rem", sm: "1.25rem" },
                 cursor: "pointer",
+                direction: direction,
               }}
               onClick={() => navigate(role === "deaf_mute" ? "/dashboard/deaf-mute" : "/dashboard/interpreter")}
             >
-              ISHARA
+              {t("app_name")}
             </Typography>
 
             {/* Navigation - Desktop */}

@@ -32,9 +32,59 @@ export interface NotificationData {
   expires_at?: Timestamp;
 }
 
+// Check if a notification already exists (same type, user, and session_id)
+export const notificationExists = async (
+  userId: string,
+  type: NotificationData['type'],
+  sessionId?: string
+): Promise<boolean> => {
+  try {
+    let q = query(
+      collection(db, 'notifications'),
+      where('user_id', '==', userId),
+      where('type', '==', type)
+    );
+
+    const querySnapshot = await getDocs(q);
+    
+    // Check if any notification matches
+    if (sessionId) {
+      // If sessionId is provided, check for exact match
+      return querySnapshot.docs.some(doc => {
+        const data = doc.data();
+        return data.data?.session_id === sessionId;
+      });
+    } else {
+      // If no sessionId provided, check if any notification of this type exists for this user
+      return querySnapshot.docs.length > 0;
+    }
+  } catch (error) {
+    console.error('Error checking notification existence:', error);
+    return false; // If check fails, allow creation (fail-safe)
+  }
+};
+
 // Create a new notification
 export const createNotification = async (notificationData: Omit<NotificationData, 'notification_id' | 'created_at' | 'is_read' | 'read_at'>): Promise<string> => {
   try {
+    // Check if notification already exists (prevent duplicates)
+    const sessionId = notificationData.data?.session_id as string | undefined;
+    const exists = await notificationExists(
+      notificationData.user_id,
+      notificationData.type,
+      sessionId
+    );
+    
+    if (exists) {
+      console.log('Notification already exists, skipping creation:', {
+        userId: notificationData.user_id,
+        type: notificationData.type,
+        sessionId
+      });
+      // Return empty string to indicate no new notification was created
+      return '';
+    }
+
     const newNotification: Omit<NotificationData, 'notification_id'> = {
       ...notificationData,
       is_read: false,
