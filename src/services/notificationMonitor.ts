@@ -1,3 +1,25 @@
+/**
+ * Notification Monitor Service
+ * 
+ * This service monitors Firestore for session changes and automatically creates
+ * in-app notifications for users. It uses real-time listeners to detect changes
+ * and prevents duplicate notifications.
+ * 
+ * Features:
+ * - Real-time monitoring of session status changes
+ * - Automatic notification creation for session events
+ * - 30-minute reminder notifications before sessions
+ * - Duplicate prevention (in-memory and database checks)
+ * - Processing locks to prevent race conditions
+ * - Skips initial cache loads to avoid false notifications
+ * 
+ * Notification Flows:
+ * 1. New session request → Notify interpreter
+ * 2. Session confirmed → Notify user (deaf/mute)
+ * 3. Session cancelled/rejected → Notify appropriate party
+ * 4. Session reminder (30 min before) → Notify both parties
+ */
+
 import { 
   collection, 
   query, 
@@ -12,34 +34,66 @@ import {
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
 
+/**
+ * SessionData Interface
+ * 
+ * Represents a session document from Firestore.
+ */
 export interface SessionData {
   id: string;
   user_id: string;
   interpreter_id: string;
   status: 'requested' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
   scheduled_time: Timestamp;
-  reminderSent?: boolean;
+  reminderSent?: boolean; // Whether reminder notification has been sent
   created_at: Timestamp;
   updated_at: Timestamp;
 }
 
+/**
+ * UserData Interface
+ * 
+ * Represents user data needed for notifications.
+ */
 export interface UserData {
   id: string;
   full_name: string;
-  fcmToken?: string;
+  fcmToken?: string; // FCM token for push notifications
   role: 'deaf_mute' | 'interpreter';
 }
 
+/**
+ * NotificationMonitor Class
+ * 
+ * Monitors Firestore sessions for changes and creates notifications.
+ * Uses singleton pattern - only one instance per user.
+ */
 class NotificationMonitor {
-  private sessionUnsubscribeInterpreter: (() => void) | null = null;
-  private sessionUnsubscribeUser: (() => void) | null = null;
-  private reminderInterval: NodeJS.Timeout | null = null;
-  private processedNotifications: Map<string, Set<string>> = new Map(); // Track processed notifications by sessionId + type
+  // Firestore snapshot unsubscribe functions
+  private sessionUnsubscribeInterpreter: (() => void) | null = null; // Unsubscribe function for interpreter sessions listener
+  private sessionUnsubscribeUser: (() => void) | null = null; // Unsubscribe function for user sessions listener
+  private reminderInterval: NodeJS.Timeout | null = null; // Interval timer for reminder checks
+  
+  // Duplicate prevention: Track processed notifications by sessionId + notification type
+  private processedNotifications: Map<string, Set<string>> = new Map();
+  
+  // Current user ID being monitored
   private currentUserId: string | null = null;
-  private isInitialLoadInterpreter: boolean = true; // Track if this is the initial snapshot load for interpreter listener
-  private isInitialLoadUser: boolean = true; // Track if this is the initial snapshot load for user listener
-  private processingLocks: Map<string, Promise<void>> = new Map(); // Prevent concurrent processing of same session
+  
+  // Track initial loads to skip cache snapshots (prevent false notifications)
+  private isInitialLoadInterpreter: boolean = true; // For interpreter sessions listener
+  private isInitialLoadUser: boolean = true; // For user sessions listener
+  
+  // Processing locks to prevent concurrent processing of same session
+  private processingLocks: Map<string, Promise<void>> = new Map();
 
+  /**
+   * Constructor
+   * 
+   * Initializes the notification monitor for a user and starts monitoring.
+   * 
+   * @param userId - Optional user ID to monitor (can be set later)
+   */
   constructor(userId?: string) {
     this.currentUserId = userId || null;
     try {
@@ -54,7 +108,14 @@ class NotificationMonitor {
     }
   }
 
-  // Update current user ID
+  /**
+   * Update current user ID
+   * 
+   * Changes the user being monitored. Cleans up existing listeners
+   * and starts new ones for the new user.
+   * 
+   * @param userId - New user ID to monitor
+   */
   public setCurrentUser(userId: string): void {
     this.currentUserId = userId;
     // Restart monitoring with new user
@@ -64,7 +125,13 @@ class NotificationMonitor {
     
   }
 
-  // FLOW 1: Monitor for new session requests
+  /**
+   * FLOW 1: Monitor for new session requests and status changes
+   * 
+   * Sets up real-time Firestore listeners for sessions where the current user
+   * is either the interpreter or the user (deaf/mute). Processes changes and
+   * creates notifications accordingly.
+   */
   private startSessionMonitoring(): void {
     if (!this.currentUserId) {
       console.warn('Cannot start session monitoring without user ID');
@@ -209,7 +276,14 @@ class NotificationMonitor {
     });
   }
 
-  // FLOW 1: Handle new session request
+  /**
+   * FLOW 1: Handle new session request
+   * 
+   * Creates a notification for the interpreter when a new session request is received.
+   * Checks for duplicates before creating notification.
+   * 
+   * @param sessionData - Session data from Firestore
+   */
   private async handleNewSessionRequest(sessionData: SessionData): Promise<void> {
     if (sessionData.status !== 'requested') return;
     
@@ -253,7 +327,15 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 2 & 3: Handle session status changes
+  /**
+   * FLOW 2 & 3: Handle session status changes
+   * 
+   * Processes session status changes (confirmed, rejected, cancelled) and
+   * creates appropriate notifications. Only notifies the user (deaf/mute),
+   * not the interpreter (they initiated the change).
+   * 
+   * @param sessionData - Session data from Firestore
+   */
   private async handleSessionStatusChange(sessionData: SessionData): Promise<void> {
     // Determine notification type based on status
     let notificationType: string | null = null;
@@ -309,7 +391,14 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 2: Handle session confirmed
+  /**
+   * FLOW 2: Handle session confirmed
+   * 
+   * Creates a notification for the user (deaf/mute) when their session is confirmed.
+   * 
+   * @param sessionData - Session data from Firestore
+   * @returns Notification ID if created, empty string if duplicate
+   */
   private async handleSessionConfirmed(sessionData: SessionData): Promise<string> {
     console.log(' Session confirmed:', sessionData.id);
     
@@ -340,7 +429,14 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 2: Handle session rejected
+  /**
+   * FLOW 2: Handle session rejected
+   * 
+   * Creates a notification for the user (deaf/mute) when their session is rejected.
+   * 
+   * @param sessionData - Session data from Firestore
+   * @returns Notification ID if created, empty string if duplicate
+   */
   private async handleSessionRejected(sessionData: SessionData): Promise<string> {
     console.log(' Session rejected:', sessionData.id);
     
@@ -371,7 +467,14 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 3: Handle session cancelled
+  /**
+   * FLOW 3: Handle session cancelled
+   * 
+   * Creates a notification for the interpreter when a session is cancelled by the user.
+   * 
+   * @param sessionData - Session data from Firestore
+   * @returns Notification ID if created, empty string if duplicate
+   */
   private async handleSessionCancelled(sessionData: SessionData): Promise<string> {
     console.log(' Session cancelled:', sessionData.id);
     
@@ -402,7 +505,12 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 4: Monitor for 30-minute reminders
+  /**
+   * FLOW 4: Monitor for 30-minute reminders
+   * 
+   * Sets up an interval to check for sessions that need reminder notifications.
+   * Checks every 5 minutes for sessions starting in 30 minutes.
+   */
   private startReminderMonitoring(): void {
     if (!this.currentUserId) {
       console.warn('Cannot start reminder monitoring without user ID');
@@ -417,7 +525,12 @@ class NotificationMonitor {
     }, 5 * 60 * 1000); // 5 minutes
   }
 
-  // FLOW 4: Check for sessions that need reminders
+  /**
+   * FLOW 4: Check for sessions that need reminders
+   * 
+   * Queries Firestore for confirmed sessions starting in 30 minutes that haven't
+   * received reminder notifications yet. Processes sessions where current user is involved.
+   */
   private async checkReminders(): Promise<void> {
     if (!this.currentUserId) {
       console.warn('Cannot check reminders without user ID');
@@ -452,7 +565,14 @@ class NotificationMonitor {
     }
   }
 
-  // FLOW 4: Send reminder notification
+  /**
+   * FLOW 4: Send reminder notification
+   * 
+   * Sends reminder notifications to both the user and interpreter 30 minutes
+   * before a session starts. Marks session as reminderSent to prevent duplicates.
+   * 
+   * @param sessionData - Session data from Firestore
+   */
   private async sendReminderNotification(sessionData: SessionData): Promise<void> {
     console.log(' Sending reminder for session:', sessionData.id);
     
@@ -520,7 +640,12 @@ class NotificationMonitor {
   }
 
 
-  // Cleanup method
+  /**
+   * Cleanup method
+   * 
+   * Stops all listeners, clears intervals, and resets state.
+   * Call this when user logs out or monitoring is no longer needed.
+   */
   public cleanup(): void {
     if (this.sessionUnsubscribeInterpreter) {
       this.sessionUnsubscribeInterpreter();
@@ -545,9 +670,17 @@ class NotificationMonitor {
 }
 
 // Export singleton instance (will be initialized with user ID)
+// Only one monitor instance exists at a time
 let notificationMonitor: NotificationMonitor | null = null;
 
-// Export for manual initialization
+/**
+ * Start notification monitoring for a user
+ * 
+ * Initializes or updates the notification monitor singleton for a user.
+ * If monitor already exists, updates it with new user ID.
+ * 
+ * @param userId - User ID to monitor
+ */
 export const startNotificationMonitoring = (userId: string): void => {
   console.log(' Starting notification monitoring for user:', userId);
   if (notificationMonitor) {
@@ -557,24 +690,50 @@ export const startNotificationMonitoring = (userId: string): void => {
   }
 };
 
-// Export for cleanup
+/**
+ * Stop notification monitoring
+ * 
+ * Stops the notification monitor and cleans up all listeners.
+ */
 export const stopNotificationMonitoring = (): void => {
   if (notificationMonitor) {
     notificationMonitor.cleanup();
   }
 };
 
-// Export manual cleanup functions for UI
+/**
+ * Clear all notifications for a user
+ * 
+ * Wrapper function to clear all notifications for a user.
+ * Used by UI components.
+ * 
+ * @param userId - User ID whose notifications to clear
+ */
 export const clearAllUserNotifications = async (userId: string): Promise<void> => {
   const { clearAllNotifications } = await import('./notificationService');
   await clearAllNotifications(userId);
 };
 
+/**
+ * Clear old notifications for a user
+ * 
+ * Wrapper function to clear notifications older than specified days.
+ * 
+ * @param userId - User ID whose notifications to clear
+ * @param daysOld - Number of days old to consider (default: 7)
+ */
 export const clearOldUserNotifications = async (userId: string, daysOld: number = 7): Promise<void> => {
   const { clearOldNotifications } = await import('./notificationService');
   await clearOldNotifications(userId, daysOld);
 };
 
+/**
+ * Remove duplicate notifications for a user
+ * 
+ * Wrapper function to remove duplicate notifications for a user.
+ * 
+ * @param userId - User ID whose duplicate notifications to remove
+ */
 export const removeDuplicateUserNotifications = async (userId: string): Promise<void> => {
   const { deleteDuplicateNotifications } = await import('./notificationService');
   await deleteDuplicateNotifications(userId);

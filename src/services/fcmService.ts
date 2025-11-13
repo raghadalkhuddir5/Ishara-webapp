@@ -1,17 +1,43 @@
-// FCM Service with proper Firebase messaging
+/**
+ * Firebase Cloud Messaging (FCM) Service
+ * 
+ * This service handles Firebase Cloud Messaging for push notifications.
+ * It manages FCM token registration, service worker setup, and foreground
+ * message handling.
+ * 
+ * Features:
+ * - Register service worker for background notifications
+ * - Request notification permissions
+ * - Generate and save FCM tokens
+ * - Handle foreground messages
+ * - Display browser notifications
+ * 
+ * Note: This service works alongside the notification monitor for in-app
+ * notifications. FCM tokens are stored in user documents for server-side
+ * push notification sending.
+ */
+
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { db } from '../firebase';
 import type { NotificationPayload } from '../types/services';
 
-// VAPID key for FCM token generation (you'll need to get this from Firebase Console)
+// VAPID key for FCM token generation (from Firebase Console)
+// This key is used to authenticate the app with Firebase Cloud Messaging
 const VAPID_KEY = 'BI0Jb9kj3HOS-Dxn3Kdh3AbxXbwqn46NFrN3aZljk0MV6F8PMNBPnaOTjDuSJuAMPVdiK43Rr_QBchEhyyp3c2A';
 
 // Initialize Firebase Messaging
-let messaging: ReturnType<typeof getMessaging> | null = null;
-let swRegistration: ServiceWorkerRegistration | null = null;
+let messaging: ReturnType<typeof getMessaging> | null = null; // Firebase messaging instance
+let swRegistration: ServiceWorkerRegistration | null = null; // Service worker registration
 
-// Register service worker
+/**
+ * Register service worker
+ * 
+ * Registers the Firebase messaging service worker for background notifications.
+ * The service worker handles notifications when the app is in the background.
+ * 
+ * @returns Promise resolving to service worker registration or null if not supported
+ */
 const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
   try {
     if ('serviceWorker' in navigator) {
@@ -34,7 +60,15 @@ try {
   console.warn('Firebase messaging not available:', error);
 }
 
-// Save FCM token to user document
+/**
+ * Save FCM token to user document
+ * 
+ * Saves the FCM token to the user's Firestore document. This token is used
+ * by server-side code to send push notifications to the user's device.
+ * 
+ * @param userId - User ID whose token to save
+ * @param token - FCM token string
+ */
 export const saveFCMTokenToUser = async (userId: string, token: string): Promise<void> => {
   try {
     const userRef = doc(db, 'users', userId);
@@ -48,7 +82,16 @@ export const saveFCMTokenToUser = async (userId: string, token: string): Promise
   }
 };
 
-// Send push notification using client-side approach
+/**
+ * Send push notification using client-side approach
+ * 
+ * Displays a browser notification if permission is granted.
+ * Note: This is a client-side implementation. For true push notifications
+ * when app is closed, use server-side FCM sending with the stored token.
+ * 
+ * @param payload - Notification payload with title, body, icon, etc.
+ * @returns Promise resolving to true if notification was shown, false otherwise
+ */
 export const sendPushNotification = async (payload: NotificationPayload): Promise<boolean> => {
   try {
     console.log('Creating in-app notification:', payload);
@@ -81,7 +124,12 @@ export const sendPushNotification = async (payload: NotificationPayload): Promis
   }
 };
 
-// Handle foreground messages
+/**
+ * Handle foreground messages
+ * 
+ * Sets up a listener for FCM messages received when the app is in the foreground.
+ * Displays browser notifications for foreground messages.
+ */
 export const setupForegroundMessageHandler = (): void => {
   if (!messaging) {
     console.warn('Firebase messaging not available');
@@ -102,7 +150,14 @@ export const setupForegroundMessageHandler = (): void => {
   });
 };
 
-// Get FCM token from user document
+/**
+ * Get FCM token from user document
+ * 
+ * Retrieves the stored FCM token from the user's Firestore document.
+ * 
+ * @param userId - User ID whose token to retrieve
+ * @returns Promise resolving to FCM token or null if not found
+ */
 export const getFCMTokenFromUser = async (userId: string): Promise<string | null> => {
   try {
     const userRef = doc(db, 'users', userId);
@@ -119,7 +174,14 @@ export const getFCMTokenFromUser = async (userId: string): Promise<string | null
   }
 };
 
-// Request permission and get FCM token
+/**
+ * Request permission and get FCM token
+ * 
+ * Requests browser notification permission and generates an FCM token.
+ * Registers service worker if needed. Handles permission denial gracefully.
+ * 
+ * @returns Promise resolving to FCM token or null if permission denied/unavailable
+ */
 export const requestNotificationPermission = async (): Promise<string | null> => {
   try {
     if (!messaging) {
@@ -177,7 +239,19 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
   }
 };
 
-// Initialize FCM for the current user
+/**
+ * Initialize FCM for the current user
+ * 
+ * Complete FCM initialization flow:
+ * 1. Request notification permission
+ * 2. Generate FCM token
+ * 3. Save token to user document
+ * 4. Set up foreground message handler
+ * 
+ * Call this when user logs in to enable push notifications.
+ * 
+ * @param userId - User ID to initialize FCM for
+ */
 export const initializeFCM = async (userId: string): Promise<void> => {
   try {
     // Request permission and get token

@@ -1,3 +1,24 @@
+/**
+ * Signup Page Component
+ * 
+ * This component handles new user registration with two methods:
+ * 1. Email/Password registration via Firebase Auth
+ * 2. Google Sign-Up via Firebase Auth
+ * 
+ * Features:
+ * - Role selection (Deaf/Mute or Interpreter)
+ * - Profile information collection
+ * - Creates user document in Firestore
+ * - Creates interpreter profile if role is interpreter
+ * - Form validation and error handling
+ * - RTL support for Arabic
+ * 
+ * Data Created:
+ * - Firebase Auth user account
+ * - Firestore user document with profile data
+ * - Firestore interpreter document (if interpreter role)
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { 
@@ -21,24 +42,39 @@ import { useNavigate, Link } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 
+/**
+ * Signup Component
+ * Handles new user registration
+ */
 function Signup() {
+  // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"deaf_mute" | "interpreter">("deaf_mute");
+  const [role, setRole] = useState<"deaf_mute" | "interpreter">("deaf_mute"); // User role selection
   const [fullName, setFullName] = useState("");
   const [birthdate, setBirthdate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(""); // Error message display
+  const [isLoading, setIsLoading] = useState(false); // Loading state during registration
+  
+  // Navigation and i18n
   const navigate = useNavigate();
   const { t, locale, direction } = useI18n();
   const isRTL = direction === 'rtl';
 
+  /**
+   * Calculate age from birthdate string
+   * 
+   * @param birthdateStr - Birthdate in ISO format (YYYY-MM-DD)
+   * @returns Calculated age in years
+   */
   const calculateAge = (birthdateStr: string): number => {
     if (!birthdateStr) return 0;
     const birthdate = new Date(birthdateStr);
     const today = new Date();
     let age = today.getFullYear() - birthdate.getFullYear();
+    
+    // Adjust age if birthday hasn't occurred this year yet
     const monthDiff = today.getMonth() - birthdate.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthdate.getDate())) {
       age--;
@@ -46,51 +82,60 @@ function Signup() {
     return age;
   };
 
+  /**
+   * Handle email/password signup
+   * 
+   * Creates a new user account with Firebase Auth and saves profile data to Firestore.
+   * Also creates interpreter profile document if user selected interpreter role.
+   */
   const handleSignup = async () => {
     try {
       setIsLoading(true);
       setError("");
       
-      // Create user in Firebase Authentication
+      // Step 1: Create user account in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Save user doc in Firestore
+      // Step 2: Save user profile document in Firestore
       const now = new Date();
       const age = birthdate ? calculateAge(birthdate) : 0;
       await setDoc(doc(db, "users", user.uid), {
         user_id: user.uid,
         email: user.email,
-        password_hash: "", // Firebase handles this
-        role: role,
+        password_hash: "", // Firebase handles password hashing, not stored in Firestore
+        role: role, // Store selected role
         full_name: fullName,
         birthdate: birthdate || null,
-        age: age,
-        language: locale,
+        age: age, // Store calculated age for quick access
+        language: locale, // Store user's language preference
         phone_number: phoneNumber,
         created_at: now,
         updated_at: now,
       });
 
-      // Create interpreter profile if role is interpreter
+      // Step 3: Create interpreter profile document if user is an interpreter
+      // This document stores interpreter-specific data like availability and ratings
       if (role === "interpreter") {
         await setDoc(doc(db, "interpreters", user.uid), {
           interpreter_id: user.uid,
-          availability: {},
-          average_rating: 0,
-          total_sessions: 0,
-          bio: "",
+          availability: {}, // Empty availability object, will be set later
+          average_rating: 0, // Initialize rating
+          total_sessions: 0, // Initialize session count
+          bio: "", // Empty bio, can be filled later
         });
       }
 
       console.log("✅ User Firestore doc created with role:", role);
 
-      // Redirect to ProtectedRoute
+      // Step 4: Redirect to dashboard
+      // ProtectedRoute will handle role-based routing
       navigate("/dashboard");
      
     } catch (error: any) {
       console.error("Signup error:", error);
       
+      // Handle specific Firebase Auth error codes with translated messages
       if (error.code === 'auth/email-already-in-use') {
         setError(t("signup_failed_email_exists"));
       } else if (error.code === 'auth/weak-password') {
@@ -105,24 +150,32 @@ function Signup() {
     }
   };
 
+  /**
+   * Handle Google Sign-Up
+   * 
+   * Creates a new user account via Google OAuth and saves profile data to Firestore.
+   * Uses Google display name if available, otherwise falls back to form input.
+   */
   const handleGoogleSignup = async () => {
     try {
       setIsLoading(true);
       setError("");
       
+      // Step 1: Authenticate with Google OAuth
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      // Save user doc in Firestore
+      // Step 2: Save user profile document in Firestore
+      // Use Google display name if available, otherwise use form input
       const now = new Date();
       const age = birthdate ? calculateAge(birthdate) : 0;
       await setDoc(doc(db, "users", user.uid), {
         user_id: user.uid,
         email: user.email,
-        password_hash: "", // Firebase handles this
+        password_hash: "", // Firebase handles password hashing
         role: role,
-        full_name: user.displayName || fullName || "Google User",
+        full_name: user.displayName || fullName || "Google User", // Prefer Google name
         birthdate: birthdate || null,
         age: age,
         language: locale,
@@ -131,7 +184,7 @@ function Signup() {
         updated_at: now,
       });
 
-      // Create interpreter profile if role is interpreter
+      // Step 3: Create interpreter profile if user is an interpreter
       if (role === "interpreter") {
         await setDoc(doc(db, "interpreters", user.uid), {
           interpreter_id: user.uid,
@@ -144,11 +197,12 @@ function Signup() {
 
       console.log("✅ User signed up with Google:", user);
       
-      // Redirect to ProtectedRoute
+      // Step 4: Redirect to dashboard
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Google signup error:", error);
       
+      // Handle Google-specific error codes
       if (error.code === 'auth/popup-closed-by-user') {
         setError(t("google_login_cancelled"));
       } else if (error.code === 'auth/popup-blocked') {

@@ -1,3 +1,19 @@
+/**
+ * Interpreter Sessions Page Component
+ * 
+ * This page displays all sessions for an interpreter, organized by status.
+ * Interpreters can view active confirmed sessions, completed sessions, and expired sessions.
+ * They can join calls for active sessions and clear old sessions.
+ * 
+ * Features:
+ * - Real-time list of confirmed and completed sessions
+ * - Separate display for active vs expired confirmed sessions
+ * - Join call button for active sessions
+ * - Clear all completed/expired sessions (marks as hidden)
+ * - Session expiration checking
+ * - RTL support for Arabic
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { Box, Container, Button, Chip, Stack, Typography, Card, CardContent, CardActions, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert } from "@mui/material";
@@ -12,26 +28,47 @@ import PersonIcon from "@mui/icons-material/Person";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
+/**
+ * SItem Interface
+ * 
+ * Represents a session item in the interpreter's session list.
+ */
 interface SItem {
-  id: string;
-  scheduled_time: string;
-  status: "requested" | "confirmed" | "cancelled" | "completed";
-  user_id: string;
+  id: string; // Session document ID
+  scheduled_time: string; // ISO string of scheduled time
+  status: "requested" | "confirmed" | "cancelled" | "completed"; // Current session status
+  user_id: string; // ID of the deaf/mute user
 }
 
+/**
+ * InterpreterSessions Component
+ * 
+ * Main component for displaying interpreter's sessions.
+ */
 function InterpreterSessions() {
+  // Get authenticated user (interpreter)
   const { user } = useAuth();
+  
+  // Get internationalization context
   const { t, direction } = useI18n();
   const isRTL = direction === "rtl";
-  const [items, setItems] = useState<SItem[]>([]);
-  const [nameMap, setNameMap] = useState<Record<string, string>>({});
-  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
-  const [clearExpiredDialogOpen, setClearExpiredDialogOpen] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [clearingExpired, setClearingExpired] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [open, setOpen] = useState(false);
+  
+  // Component state
+  const [items, setItems] = useState<SItem[]>([]); // List of sessions
+  const [nameMap, setNameMap] = useState<Record<string, string>>({}); // Map of user IDs to display names
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false); // Controls clear all completed dialog
+  const [clearExpiredDialogOpen, setClearExpiredDialogOpen] = useState(false); // Controls clear expired dialog
+  const [clearing, setClearing] = useState(false); // Loading state when clearing completed sessions
+  const [clearingExpired, setClearingExpired] = useState(false); // Loading state when clearing expired sessions
+  const [message, setMessage] = useState<string>(""); // Success/error message
+  const [open, setOpen] = useState(false); // Controls snackbar visibility
 
+  /**
+   * useEffect: Load sessions for this interpreter
+   * 
+   * Sets up a real-time listener for confirmed and completed sessions.
+   * Filters out hidden sessions and sorts by scheduled time (newest first).
+   */
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "sessions"), where("interpreter_id", "==", user.uid));
@@ -51,6 +88,12 @@ function InterpreterSessions() {
     return () => unsub();
   }, [user]);
 
+  /**
+   * useEffect: Load user names for display
+   * 
+   * Fetches display names for all unique users in the sessions list.
+   * Only loads names that aren't already in the nameMap to avoid redundant requests.
+   */
   useEffect(() => {
     const loadNames = async () => {
       const missing = Array.from(new Set(items.map((s) => s.user_id))).filter((id) => !nameMap[id]);
@@ -75,6 +118,14 @@ function InterpreterSessions() {
     if (items.length) void loadNames();
   }, [items, nameMap]);
 
+  /**
+   * Format date string for display
+   * 
+   * Converts ISO date string to a human-readable format.
+   * 
+   * @param dateString - ISO date string
+   * @returns Formatted date string (e.g., "January 15, 2024, 10:30 AM")
+   */
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
       year: "numeric",
@@ -85,6 +136,12 @@ function InterpreterSessions() {
     });
   };
 
+  /**
+   * Get Material-UI color for status chip
+   * 
+   * @param status - Session status string
+   * @returns Material-UI color name
+   */
   const getStatusColor = (status: string) => {
     if (status === "confirmed") return "success";
     if (status === "completed") return "info";
@@ -92,6 +149,14 @@ function InterpreterSessions() {
     return "default";
   };
 
+  /**
+   * Get custom styles for status chip
+   * 
+   * Returns custom styling for confirmed status chips (teal background).
+   * 
+   * @param status - Session status string
+   * @returns Style object for MUI Chip component
+   */
   const getStatusChipSx = (status: string) => {
     if (status === "confirmed") {
       return {
@@ -110,6 +175,12 @@ function InterpreterSessions() {
   const activeConfirmedItems = confirmedItems.filter((s) => !isSessionExpired(s.scheduled_time));
   const expiredConfirmedItems = confirmedItems.filter((s) => isSessionExpired(s.scheduled_time));
 
+  /**
+   * Handle clear all completed sessions
+   * 
+   * Marks all completed sessions as hidden (soft delete).
+   * This preserves records in the database while hiding them from the UI.
+   */
   const handleClearAll = async () => {
     if (completedItems.length === 0) return;
     setClearing(true);
@@ -133,6 +204,12 @@ function InterpreterSessions() {
     }
   };
 
+  /**
+   * Handle clear all expired sessions
+   * 
+   * Marks all expired confirmed sessions as hidden (soft delete).
+   * This preserves records in the database while hiding them from the UI.
+   */
   const handleClearExpired = async () => {
     if (expiredConfirmedItems.length === 0) return;
     setClearingExpired(true);

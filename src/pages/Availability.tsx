@@ -1,3 +1,19 @@
+/**
+ * Availability Page Component
+ * 
+ * This page allows interpreters to set their weekly availability schedule.
+ * Interpreters can set availability for each day of the week with morning and evening shifts,
+ * or set themselves as always available.
+ * 
+ * Features:
+ * - Weekly schedule with morning (6 AM - 2 PM) and evening (2 PM - 10 PM) shifts
+ * - "Always Available" toggle option
+ * - Real-time sync with Firestore
+ * - Create interpreter profile if it doesn't exist
+ * - RTL support for Arabic
+ * - Responsive design for mobile/desktop
+ */
+
 import { useEffect, useState } from "react";
 import { Alert, Box, Container, Button, Checkbox, FormControlLabel, Snackbar, Stack, Typography, Card, CardContent, Switch, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
 import { onSnapshot, doc, setDoc } from "firebase/firestore";
@@ -8,26 +24,60 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import NightsStayIcon from "@mui/icons-material/NightsStay";
 
+/**
+ * DayKey Type
+ * 
+ * Valid day names for the week.
+ */
 type DayKey = "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday";
+
+/**
+ * Shift Type
+ * 
+ * Time shift options for each day.
+ */
 type Shift = "morning" | "evening";
 
+/**
+ * AvailabilityConfig Interface
+ * 
+ * Structure for storing interpreter availability configuration.
+ */
 interface AvailabilityConfig {
-  isAlwaysAvailable: boolean;
-  days: Record<DayKey, { morning: boolean; evening: boolean }>;
+  isAlwaysAvailable: boolean; // If true, interpreter is available at all times
+  days: Record<DayKey, { morning: boolean; evening: boolean }>; // Availability for each day and shift
 }
 
+/**
+ * Availability Component
+ * 
+ * Main component for managing interpreter availability schedule.
+ */
 function Availability() {
+  // Get authenticated user (interpreter)
   const { user } = useAuth();
+  
+  // Get internationalization context
   const { t, direction } = useI18n();
   const isRTL = direction === "rtl";
+  
+  // Responsive design helpers
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [config, setConfig] = useState<AvailabilityConfig | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  
+  // Component state
+  const [config, setConfig] = useState<AvailabilityConfig | null>(null); // Current availability configuration
+  const [saving, setSaving] = useState(false); // Loading state when saving
+  const [message, setMessage] = useState<string>(""); // Success/error message
+  const [open, setOpen] = useState(false); // Controls snackbar visibility
+  const [loading, setLoading] = useState(true); // Loading state when fetching config
 
+  /**
+   * useEffect: Load availability configuration from Firestore
+   * 
+   * Sets up a real-time listener for the interpreter's availability configuration.
+   * If no configuration exists, initializes with default values (all days unavailable).
+   */
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(doc(db, "interpreters", user.uid), (snap) => {
@@ -67,6 +117,12 @@ function Availability() {
     return () => unsub();
   }, [user]);
 
+  /**
+   * Save availability configuration to Firestore
+   * 
+   * Updates the interpreter document with the current availability settings.
+   * Uses merge: true to preserve other interpreter data.
+   */
   const saveConfig = async () => {
     if (!user || !config) return;
     setSaving(true);
@@ -84,6 +140,12 @@ function Availability() {
     }
   };
 
+  /**
+   * Create interpreter document if it doesn't exist
+   * 
+   * Creates a new interpreter document with default values.
+   * Called when interpreter profile is missing (shouldn't happen normally).
+   */
   const createInterpreterDoc = async () => {
     if (!user) return;
     try {
@@ -115,6 +177,14 @@ function Availability() {
     }
   };
 
+  /**
+   * Toggle availability for a specific day and shift
+   * 
+   * Updates the local state to toggle morning or evening availability for a day.
+   * 
+   * @param day - Day of the week to toggle
+   * @param shift - Shift to toggle ("morning" or "evening")
+   */
   const toggleDayShift = (day: DayKey, shift: Shift) => {
     if (!config || !config.days) return;
     setConfig({
@@ -126,6 +196,14 @@ function Availability() {
     });
   };
 
+  /**
+   * Toggle "always available" mode
+   * 
+   * When enabled, interpreter is available at all times regardless of day/shift settings.
+   * When disabled, uses the weekly schedule.
+   * 
+   * @param checked - Whether "always available" should be enabled
+   */
   const toggleAlwaysAvailable = (checked: boolean) => {
     if (!config) return;
     setConfig({

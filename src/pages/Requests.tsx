@@ -1,3 +1,18 @@
+/**
+ * Requests Page Component
+ * 
+ * This page allows interpreters to view and manage session requests from deaf/mute users.
+ * Interpreters can accept or reject requests, view confirmed/cancelled sessions, and delete sessions.
+ * 
+ * Features:
+ * - Real-time list of session requests (pending, confirmed, cancelled)
+ * - Accept/reject session requests
+ * - View session details (user name, scheduled time)
+ * - Delete confirmed/cancelled sessions
+ * - Create call records and notifications when accepting requests
+ * - RTL support for Arabic
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box, Container, Typography, Button, Card, CardContent, CardActions, Chip, Stack, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { useI18n } from "../context/I18nContext";
@@ -13,25 +28,46 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonIcon from "@mui/icons-material/Person";
 
+/**
+ * SItem Interface
+ * 
+ * Represents a session item displayed in the requests list.
+ */
 interface SItem {
-  id: string;
-  scheduled_time: string;
-  status: "requested" | "confirmed" | "cancelled" | "completed";
-  user_id: string;
+  id: string; // Session document ID
+  scheduled_time: string; // ISO string of scheduled time
+  status: "requested" | "confirmed" | "cancelled" | "completed"; // Current session status
+  user_id: string; // ID of the deaf/mute user who requested the session
 }
 
+/**
+ * Requests Component
+ * 
+ * Main component for interpreters to manage session requests.
+ */
 function Requests() {
+  // Get internationalization context for translations and RTL support
   const { t, direction } = useI18n();
   const isRTL = direction === "rtl";
+  
+  // Get authenticated user (interpreter)
   const { user } = useAuth();
-  const [items, setItems] = useState<SItem[]>([]);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string>("");
-  const [open, setOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [userNames, setUserNames] = useState<Record<string, string>>({});
+  
+  // Component state
+  const [items, setItems] = useState<SItem[]>([]); // List of all sessions for this interpreter
+  const [savingId, setSavingId] = useState<string | null>(null); // ID of session being processed (for loading state)
+  const [message, setMessage] = useState<string>(""); // Success/error message for snackbar
+  const [open, setOpen] = useState(false); // Controls snackbar visibility
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false); // Controls delete confirmation dialog
+  const [deleteId, setDeleteId] = useState<string | null>(null); // ID of session to delete
+  const [userNames, setUserNames] = useState<Record<string, string>>({}); // Map of user IDs to display names
 
+  /**
+   * useEffect: Load sessions for this interpreter
+   * 
+   * Sets up a real-time listener for sessions where the current user is the interpreter.
+   * Automatically updates the list when sessions are added, modified, or deleted.
+   */
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "sessions"), where("interpreter_id", "==", user.uid));
@@ -49,7 +85,12 @@ function Requests() {
     return () => unsub();
   }, [user]);
 
-  // Load user names
+  /**
+   * useEffect: Load user names for display
+   * 
+   * Fetches display names for all unique users in the sessions list.
+   * This allows showing user names instead of just user IDs.
+   */
   useEffect(() => {
     const loadNames = async () => {
       const uniqueUserIds = [...new Set(items.map((item) => item.user_id))];
@@ -73,6 +114,15 @@ function Requests() {
     if (items.length) void loadNames();
   }, [items]);
 
+  /**
+   * Update session status (accept or reject request)
+   * 
+   * Updates the session status in Firestore and creates appropriate notifications.
+   * When confirming, also creates a call record for tracking.
+   * 
+   * @param id - Session document ID
+   * @param status - New status ("confirmed" or "cancelled")
+   */
   const updateStatus = async (id: string, status: "confirmed" | "cancelled") => {
     setSavingId(id);
     try {
@@ -120,11 +170,24 @@ function Requests() {
     }
   };
 
+  /**
+   * Handle delete button click
+   * 
+   * Opens the delete confirmation dialog for a session.
+   * 
+   * @param id - Session document ID to delete
+   */
   const handleDeleteClick = (id: string) => {
     setDeleteId(id);
     setDeleteDialogOpen(true);
   };
 
+  /**
+   * Handle delete confirmation
+   * 
+   * Permanently deletes the session document from Firestore.
+   * Called when user confirms deletion in the dialog.
+   */
   const handleDeleteConfirm = async () => {
     if (!deleteId) return;
     try {
@@ -140,6 +203,14 @@ function Requests() {
     }
   };
 
+  /**
+   * Get Material-UI color for status chip
+   * 
+   * Returns the appropriate color variant for displaying session status.
+   * 
+   * @param status - Session status string
+   * @returns Material-UI color name
+   */
   const getStatusColor = (status: string) => {
     switch (status) {
       case "requested":
@@ -155,6 +226,14 @@ function Requests() {
     }
   };
 
+  /**
+   * Get custom styles for status chip
+   * 
+   * Returns custom styling for confirmed status chips (teal background).
+   * 
+   * @param status - Session status string
+   * @returns Style object for MUI Chip component
+   */
   const getStatusChipSx = (status: string) => {
     if (status === "confirmed") {
       return {
@@ -169,6 +248,14 @@ function Requests() {
     return { minWidth: 100 };
   };
 
+  /**
+   * Format date string for display
+   * 
+   * Converts ISO date string to a human-readable format.
+   * 
+   * @param dateString - ISO date string
+   * @returns Formatted date string (e.g., "Jan 15, 2024, 10:30 AM")
+   */
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {

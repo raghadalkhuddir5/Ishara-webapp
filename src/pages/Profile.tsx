@@ -1,3 +1,17 @@
+/**
+ * Profile Page Component
+ * 
+ * This component displays and allows editing of user profile information.
+ * For interpreters, it also shows statistics like total sessions completed,
+ * average rating, and recent reviews.
+ * 
+ * Features:
+ * - View and edit personal information (name, birthdate, phone, language)
+ * - For interpreters: view statistics and ratings
+ * - Supports RTL (Right-to-Left) layout for Arabic language
+ * - Real-time updates when profile is saved
+ */
+
 import { useEffect, useState } from "react";
 import { Box, Container, Button, MenuItem, TextField, Typography, Snackbar, Alert, Stack, Card, CardContent, CircularProgress, Chip } from "@mui/material";
 import { useAuth } from "../context/AuthContext";
@@ -15,6 +29,10 @@ import EmailIcon from "@mui/icons-material/Email";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import EventIcon from "@mui/icons-material/Event";
 
+/**
+ * UserData Interface
+ * Defines the structure of user data retrieved from Firestore
+ */
 interface UserData {
   full_name?: string;
   age?: number;
@@ -22,49 +40,78 @@ interface UserData {
   phone_number?: string;
   language?: string;
   role?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   created_at?: any;
 }
 
+/**
+ * Profile Component
+ * Main component for displaying and editing user profile
+ */
 function Profile() {
+  // Get authenticated user from AuthContext
   const { user } = useAuth();
+  // Get internationalization functions and direction (LTR/RTL)
   const { t, setLocale, direction } = useI18n();
+  // Check if current language is RTL (Right-to-Left) for layout adjustments
   const isRTL = direction === "rtl";
+  // State for form fields - editable user information
   const [fullName, setFullName] = useState("");
   const [birthdate, setBirthdate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [language, setLanguage] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [open, setOpen] = useState(false);
-  const [userRole, setUserRole] = useState<string>("");
-  const [ratings, setRatings] = useState<RatingData[]>([]);
-  const [averageRating, setAverageRating] = useState<number>(0);
-  const [joinDate, setJoinDate] = useState<Date | null>(null);
-  const [totalSessions, setTotalSessions] = useState<number>(0);
+  
+  // State for UI feedback and loading states
+  const [saving, setSaving] = useState(false); // Loading state when saving profile
+  const [message, setMessage] = useState<string>(""); // Success/error message
+  const [open, setOpen] = useState(false); // Controls snackbar visibility
+  
+  // State for user role and interpreter-specific data
+  const [userRole, setUserRole] = useState<string>(""); // "interpreter" or "deaf_mute"
+  const [ratings, setRatings] = useState<RatingData[]>([]); // List of ratings received
+  const [averageRating, setAverageRating] = useState<number>(0); // Calculated average rating
+  const [joinDate, setJoinDate] = useState<Date | null>(null); // Account creation date
+  const [totalSessions, setTotalSessions] = useState<number>(0); // Total completed sessions
 
+  /**
+   * useEffect: Load user profile data from Firestore
+   * 
+   * This effect runs when the component mounts or when the user changes.
+   * It fetches the user's profile data and populates the form fields.
+   */
   useEffect(() => {
     const load = async () => {
+      // Exit early if no user is authenticated
       if (!user) return;
+      
+      // Fetch user document from Firestore
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) {
         const d = snap.data() as UserData;
+        
+        // Populate form fields with user data
         setFullName(d.full_name ?? "");
+        
+        // Handle birthdate: prefer actual birthdate, fallback to calculated from age
         // If birthdate exists, use it; otherwise calculate from age if available
         if (d.birthdate) {
           setBirthdate(d.birthdate);
         } else if (d.age) {
           // Calculate approximate birthdate from age (set to January 1st of that year)
+          // This is a fallback for users who only provided age during signup
           const currentYear = new Date().getFullYear();
           const birthYear = currentYear - d.age;
           setBirthdate(`${birthYear}-01-01`);
         } else {
           setBirthdate("");
         }
-        setPhoneNumber(d.phone_number ?? "");
-        setLanguage(d.language ?? "en");
-        setUserRole(d.role ?? "");
         
-        // Set join date
+        // Set remaining form fields with default values if missing
+        setPhoneNumber(d.phone_number ?? "");
+        setLanguage(d.language ?? "en"); // Default to English
+        setUserRole(d.role ?? ""); // Store role for conditional rendering
+        
+        // Convert Firestore timestamp to JavaScript Date for join date display
         if (d.created_at) {
           const createdDate = d.created_at.toDate ? d.created_at.toDate() : new Date(d.created_at);
           setJoinDate(createdDate);
@@ -74,13 +121,20 @@ function Profile() {
     load();
   }, [user]);
 
-  // Load interpreter statistics
+  /**
+   * useEffect: Load interpreter statistics
+   * 
+   * This effect runs when the user role is determined and the user is an interpreter.
+   * It fetches statistics like total completed sessions to display in the profile.
+   */
   useEffect(() => {
     const loadStatistics = async () => {
+      // Only load statistics for interpreters
       if (!user || userRole !== "interpreter") return;
       
       try {
-        // Get completed sessions
+        // Query Firestore for all completed sessions for this interpreter
+        // This count is used to show total sessions completed in the profile
         const sessionsQuery = query(
           collection(db, "sessions"),
           where("interpreter_id", "==", user.uid),
@@ -94,20 +148,30 @@ function Profile() {
       }
     };
     
+    // Only load statistics once userRole is set
     if (userRole) {
       loadStatistics();
     }
   }, [user, userRole]);
 
+  /**
+   * useEffect: Load interpreter ratings
+   * 
+   * This effect loads the ratings received by the interpreter and calculates
+   * the average rating. Only runs for interpreters.
+   */
   useEffect(() => {
     const loadRatings = async () => {
+      // Only load ratings for interpreters
       if (!user || userRole !== "interpreter") return;
       
       try {
+        // Fetch the 10 most recent ratings for this interpreter
         const interpreterRatings = await getRatingsForInterpreter(user.uid, 10);
         setRatings(interpreterRatings);
         
-        // Calculate average rating
+        // Calculate average rating from all ratings
+        // Round to 1 decimal place for display
         if (interpreterRatings.length > 0) {
           const sum = interpreterRatings.reduce((acc, rating) => acc + (rating.stars || 0), 0);
           setAverageRating(Math.round((sum / interpreterRatings.length) * 10) / 10);
@@ -119,16 +183,25 @@ function Profile() {
       }
     };
     
+    // Only load ratings once userRole is set
     if (userRole) {
       loadRatings();
     }
   }, [user, userRole]);
 
+  /**
+   * Calculate age from birthdate string
+   * 
+   * @param birthdateStr - Birthdate in ISO format (YYYY-MM-DD)
+   * @returns Calculated age in years
+   */
   const calculateAge = (birthdateStr: string): number => {
     if (!birthdateStr) return 0;
     const birthdate = new Date(birthdateStr);
     const today = new Date();
     let age = today.getFullYear() - birthdate.getFullYear();
+    
+    // Adjust age if birthday hasn't occurred this year yet
     const monthDiff = today.getMonth() - birthdate.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthdate.getDate())) {
       age--;
@@ -136,24 +209,39 @@ function Profile() {
     return age;
   };
 
+  /**
+   * Save profile changes to Firestore
+   * 
+   * This function updates the user's profile in Firestore with the current form values.
+   * It also updates the app locale if the language preference changed.
+   */
   const save = async () => {
     if (!user) return;
     setSaving(true);
     try {
+      // Calculate age from birthdate before saving
       const age = birthdate ? calculateAge(birthdate) : 0;
+      
+      // Update user document in Firestore with new profile data
       await updateDoc(doc(db, "users", user.uid), {
         full_name: fullName,
         birthdate: birthdate || null,
-        age: age,
+        age: age, // Store calculated age for quick access
         phone_number: phoneNumber,
         language,
-        updated_at: new Date(),
+        updated_at: new Date(), // Track when profile was last updated
       });
+      
+      // Update app locale if language preference changed
+      // This immediately changes the UI language
       await setLocale(language as "en" | "ar");
+      
+      // Show success message
       setMessage(t("profile_updated_success"));
       setOpen(true);
     } catch (error) {
       console.error("Failed to update profile:", error);
+      // Show error message
       setMessage(t("profile_update_failed"));
       setOpen(true);
     } finally {
@@ -161,6 +249,12 @@ function Profile() {
     }
   };
 
+  /**
+   * Render star rating display
+   * 
+   * @param stars - Number of stars (1-5)
+   * @returns JSX element displaying filled/unfilled stars
+   */
   const renderStars = (stars: number) => {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -169,6 +263,7 @@ function Profile() {
             key={star}
             sx={{
               fontSize: 18,
+              // Fill stars up to the rating value, leave others gray
               color: star <= stars ? '#ffc107' : '#ddd'
             }}
           />

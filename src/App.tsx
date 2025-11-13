@@ -1,3 +1,21 @@
+/**
+ * App Component
+ * 
+ * This is the root component that sets up React Router and defines all application routes.
+ * It handles routing, authentication protection, role-based access control, and layout wrapping.
+ * 
+ * Route Structure:
+ * - Public routes: Landing, Signup, Login
+ * - Protected routes: All authenticated pages wrapped in AppLayout
+ * - Role-based routes: Deaf/Mute and Interpreter specific pages
+ * - Common routes: Profile and CallRoom (accessible by both roles)
+ * 
+ * Route Protection:
+ * - ProtectedRoute: Checks authentication, redirects to login if not authenticated
+ * - RequireRole: Checks user role, redirects to dashboard if wrong role
+ * - AppLayout: Provides shared navigation and layout for authenticated pages
+ */
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"; 
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -15,6 +33,11 @@ import MySessions from "./pages/MySessions";
 import InterpreterSessions from "./pages/InterpreterSessions";
 import CallRoom from "./pages/CallRoom";
 
+/**
+ * App Component
+ * 
+ * Main application component with routing configuration.
+ */
 function App() {
   return (
     <Router>

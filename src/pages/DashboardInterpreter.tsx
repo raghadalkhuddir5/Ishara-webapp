@@ -1,3 +1,17 @@
+/**
+ * Dashboard Interpreter Page Component
+ * 
+ * This is the main dashboard page for interpreters. It provides quick access
+ * to key features like viewing requests, managing availability, viewing sessions,
+ * and accessing profile.
+ * 
+ * Features:
+ * - Navigation cards to key interpreter features
+ * - Responsive grid layout
+ * - RTL support for Arabic
+ * - Logo and branding display
+ */
+
 import { Box, Container, Typography, Button, Card, CardContent, CardActions, useTheme, useMediaQuery } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";
@@ -7,11 +21,25 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import PersonIcon from "@mui/icons-material/Person";
 
+/**
+ * DashboardInterpreter Component
+ * 
+ * Main dashboard component for interpreters.
+ */
 function DashboardInterpreter() {
+  // Get internationalization context
   const { t, direction } = useI18n();
+  
+  // Responsive design helpers
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
+  /**
+   * Services array
+   * 
+   * Defines the navigation cards displayed on the dashboard.
+   * Each service has an icon, title, description, and route link.
+   */
   const services = [
     {
       id: "requests",

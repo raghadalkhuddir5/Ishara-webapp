@@ -1,16 +1,47 @@
+/**
+ * PeerJS Service
+ * 
+ * This service manages WebRTC video call connections using PeerJS.
+ * It handles peer-to-peer video/audio communication between users and interpreters.
+ * 
+ * Features:
+ * - Initialize PeerJS peer connections
+ * - Manage local and remote media streams (camera, microphone)
+ * - Handle incoming/outgoing calls
+ * - Toggle camera and microphone
+ * - Screen sharing support
+ * - Data channel for signaling
+ * - Connection state management
+ * 
+ * Architecture:
+ * - Uses PeerJS library for WebRTC signaling
+ * - STUN servers for NAT traversal
+ * - Global state management for peer connections
+ * - Media stream management for video/audio tracks
+ */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Peer from 'peerjs';
 
 // Global variables for peer and connections
-let peer: Peer | null = null;
-let currentPeerId: string | null = null;
-let dataConnection: any = null;
-let mediaConnection: any = null;
-let localStream: MediaStream | null = null;
-let remoteStream: MediaStream | null = null;
-let isConnected = false;
-let isCameraEnabled = true; // Track camera state
+// These are module-level to maintain state across function calls
+let peer: Peer | null = null; // PeerJS peer instance
+let currentPeerId: string | null = null; // Current peer's ID
+let dataConnection: any = null; // Data channel for signaling (text messages)
+let mediaConnection: any = null; // Media channel for video/audio
+let localStream: MediaStream | null = null; // User's own camera/microphone stream
+let remoteStream: MediaStream | null = null; // Remote peer's video/audio stream
+let isConnected = false; // Connection state flag
+let isCameraEnabled = true; // Track camera state (for toggle functionality)
 
-// Helper function to create a black video track
+/**
+ * Helper function to create a black video track
+ * 
+ * Creates a canvas-based black video track to replace camera feed when camera is disabled.
+ * This ensures the video connection remains active even when camera is off.
+ * 
+ * @returns MediaStreamTrack - A black video track
+ */
 const createBlackVideoTrack = (): MediaStreamTrack => {
   const canvas = document.createElement('canvas');
   canvas.width = 1280;
@@ -37,7 +68,17 @@ const createBlackVideoTrack = (): MediaStreamTrack => {
   return track;
 };
 
-// Initialize PeerJS peer with explicit peerId (deterministic per role)
+/**
+ * Initialize PeerJS peer with explicit peerId
+ * 
+ * Creates a new PeerJS peer instance with a deterministic peer ID.
+ * If a peer already exists with the same ID, it reuses it.
+ * Otherwise, it destroys the existing peer and creates a new one.
+ * 
+ * @param peerId - Unique peer ID (typically based on user ID or session ID)
+ * @returns Promise resolving to the peer ID when initialization is complete
+ * @throws Error if initialization fails
+ */
 export const initPeer = async (peerId: string): Promise<string> => {
   try {
     console.log('Initializing PeerJS peer with ID:', peerId);
@@ -92,7 +133,18 @@ export const initPeer = async (peerId: string): Promise<string> => {
   }
 };
 
-// Set up event listeners for incoming connections
+/**
+ * Set up event listeners for incoming connections
+ * 
+ * Configures event handlers for incoming data connections and media calls.
+ * Handles both incoming calls (when remote peer calls us) and data messages.
+ * 
+ * @param onRemoteStream - Callback when remote video/audio stream is received
+ * @param onDataReceived - Callback when data message is received via data channel
+ * @param onConnectionClosed - Callback when connection is closed
+ * @param onRemotePeerId - Optional callback when remote peer ID is detected
+ * @throws Error if peer is not initialized
+ */
 export const setupPeerListeners = (
   onRemoteStream: (stream: MediaStream) => void,
   onDataReceived: (data: unknown) => void,
@@ -194,7 +246,18 @@ export const setupPeerListeners = (
   });
 };
 
-// Start local media stream
+/**
+ * Start local media stream
+ * 
+ * Requests access to user's camera and microphone and creates a MediaStream.
+ * Handles various permission errors with user-friendly messages.
+ * Falls back to simpler constraints if initial request fails.
+ * 
+ * @param audio - Whether to request audio (microphone) access (default: true)
+ * @param video - Whether to request video (camera) access (default: true)
+ * @returns Promise resolving to MediaStream with camera/microphone tracks
+ * @throws Error if media access is denied or devices are unavailable
+ */
 export const startLocalStream = async (audio: boolean = true, video: boolean = true): Promise<MediaStream> => {
   try {
     console.log('Requesting camera and microphone access...');
@@ -252,7 +315,16 @@ export const startLocalStream = async (audio: boolean = true, video: boolean = t
   }
 };
 
-// Call another peer
+/**
+ * Call another peer
+ * 
+ * Initiates a video call to a remote peer. Creates both media connection
+ * (for video/audio) and data connection (for signaling/text messages).
+ * 
+ * @param remotePeerId - ID of the remote peer to call
+ * @param onRemoteStream - Optional callback when remote stream is received
+ * @throws Error if peer is not initialized or local stream is unavailable
+ */
 export const callPeer = async (remotePeerId: string, onRemoteStream?: (stream: MediaStream) => void): Promise<void> => {
   try {
     if (!peer) {
@@ -318,7 +390,14 @@ export const callPeer = async (remotePeerId: string, onRemoteStream?: (stream: M
   }
 };
 
-// End call
+/**
+ * End call
+ * 
+ * Closes all active connections (media and data) and stops local media tracks.
+ * Resets connection state but keeps peer instance alive for potential reconnection.
+ * 
+ * @throws Error if cleanup fails
+ */
 export const endCall = async (): Promise<void> => {
   try {
     console.log('Ending call...');
@@ -356,7 +435,15 @@ export const endCall = async (): Promise<void> => {
   }
 };
 
-// Restart camera (create new video track)
+/**
+ * Restart camera (create new video track)
+ * 
+ * Creates a new camera video track and replaces the existing one in the local stream.
+ * Also updates the media connection to use the new track.
+ * Useful for fixing camera issues or switching cameras.
+ * 
+ * @throws Error if local stream is unavailable or camera access fails
+ */
 export const restartCamera = async (): Promise<void> => {
   try {
     if (!localStream) {
@@ -402,7 +489,15 @@ export const restartCamera = async (): Promise<void> => {
   }
 };
 
-// Toggle microphone
+/**
+ * Toggle microphone on/off
+ * 
+ * Enables or disables the microphone track in the local stream.
+ * When disabled, remote peer will not receive audio.
+ * 
+ * @returns Promise resolving to true if microphone is now enabled, false if disabled
+ * @throws Error if local stream is unavailable
+ */
 export const toggleMicrophone = async (): Promise<boolean> => {
   try {
     if (!localStream) {
@@ -423,7 +518,16 @@ export const toggleMicrophone = async (): Promise<boolean> => {
   }
 };
 
-// Toggle camera
+/**
+ * Toggle camera on/off
+ * 
+ * Enables or disables the camera track in the local stream.
+ * When disabled, replaces camera feed with a black video track to maintain connection.
+ * When enabled, requests new camera access and replaces black track.
+ * 
+ * @returns Promise resolving to true if camera is now enabled, false if disabled
+ * @throws Error if local stream is unavailable or camera access fails
+ */
 export const toggleCamera = async (): Promise<boolean> => {
   try {
     if (!localStream) {
@@ -514,7 +618,14 @@ export const toggleCamera = async (): Promise<boolean> => {
   }
 };
 
-// Start screen sharing
+/**
+ * Start screen sharing
+ * 
+ * Requests screen sharing permission and replaces camera video track with screen share.
+ * User can share their entire screen or a specific application window.
+ * 
+ * @throws Error if local stream is unavailable or screen sharing is denied
+ */
 export const startScreenShare = async (): Promise<void> => {
   try {
     if (!localStream) {
@@ -562,7 +673,14 @@ export const startScreenShare = async (): Promise<void> => {
   }
 };
 
-// Stop screen sharing
+/**
+ * Stop screen sharing
+ * 
+ * Stops screen sharing and switches back to camera feed.
+ * Replaces screen share track with camera video track.
+ * 
+ * @throws Error if local stream is unavailable or camera access fails
+ */
 export const stopScreenShare = async (): Promise<void> => {
   try {
     if (!localStream) {
@@ -608,7 +726,14 @@ export const stopScreenShare = async (): Promise<void> => {
   }
 };
 
-// Send data to remote peer
+/**
+ * Send data to remote peer
+ * 
+ * Sends arbitrary data (text, JSON, etc.) to the remote peer via data channel.
+ * Used for signaling, chat messages, or other non-media communication.
+ * 
+ * @param data - Data to send (can be string, object, etc.)
+ */
 export const sendData = (data: unknown): void => {
   if (dataConnection && dataConnection.open) {
     dataConnection.send(data);
@@ -618,32 +743,58 @@ export const sendData = (data: unknown): void => {
   }
 };
 
-// Get current peer ID
+/**
+ * Get current peer ID
+ * 
+ * @returns Current peer ID or null if not initialized
+ */
 export const getCurrentPeerId = (): string | null => {
   return currentPeerId;
 };
 
-// Get local stream
+/**
+ * Get local stream
+ * 
+ * @returns Local media stream (camera/microphone) or null if not started
+ */
 export const getLocalStream = (): MediaStream | null => {
   return localStream;
 };
 
-// Get remote stream
+/**
+ * Get remote stream
+ * 
+ * @returns Remote peer's media stream or null if not received
+ */
 export const getRemoteStream = (): MediaStream | null => {
   return remoteStream;
 };
 
-// Check if connected
+/**
+ * Check if connected
+ * 
+ * @returns True if peer is connected to remote peer, false otherwise
+ */
 export const isPeerConnected = (): boolean => {
   return isConnected;
 };
 
-// Check if peer is initialized
+/**
+ * Check if peer is initialized
+ * 
+ * @returns True if peer instance exists and has an ID, false otherwise
+ */
 export const isPeerInitialized = (): boolean => {
   return peer !== null && currentPeerId !== null;
 };
 
-// Reset for reconnection (keep peer alive, just close connections)
+/**
+ * Reset for reconnection (keep peer alive, just close connections)
+ * 
+ * Closes active connections and stops media streams but keeps the peer instance
+ * alive. This allows reconnection without reinitializing the peer.
+ * Useful when connection drops temporarily.
+ */
 export const resetForReconnection = (): void => {
   // Close connections
   if (mediaConnection) {
@@ -669,12 +820,21 @@ export const resetForReconnection = (): void => {
   console.log('PeerJS reset for reconnection (peer kept alive)');
 };
 
-// Check if local stream is available and ready for calls
+/**
+ * Check if local stream is available and ready for calls
+ * 
+ * @returns True if local stream exists and is active, false otherwise
+ */
 export const isLocalStreamReady = (): boolean => {
   return localStream !== null && localStream.active;
 };
 
-// Clean up resources completely
+/**
+ * Clean up resources completely
+ * 
+ * Destroys peer instance, stops all media tracks, and resets all state.
+ * Call this when leaving the call room or when peer is no longer needed.
+ */
 export const cleanup = (): void => {
   if (peer) {
     peer.destroy();

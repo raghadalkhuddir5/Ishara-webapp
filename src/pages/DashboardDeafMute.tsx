@@ -1,3 +1,16 @@
+/**
+ * Dashboard Deaf/Mute Page Component
+ * 
+ * This is the main dashboard page for deaf/mute users. It provides quick access
+ * to key features like booking sessions, viewing sessions, and accessing profile.
+ * 
+ * Features:
+ * - Navigation cards to key user features
+ * - Responsive grid layout
+ * - RTL support for Arabic
+ * - Logo and branding display
+ */
+
 import { Box, Container, Typography, Button, Card, CardContent, CardActions, useTheme, useMediaQuery } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";
@@ -6,11 +19,25 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import PersonIcon from "@mui/icons-material/Person";
 
+/**
+ * DashboardDeafMute Component
+ * 
+ * Main dashboard component for deaf/mute users.
+ */
 function DashboardDeafMute() {
+  // Get internationalization context
   const { t, direction } = useI18n();
+  
+  // Responsive design helpers
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
+  /**
+   * Services array
+   * 
+   * Defines the navigation cards displayed on the dashboard.
+   * Each service has an icon, title, description, and route link.
+   */
   const services = [
     {
       id: "book",

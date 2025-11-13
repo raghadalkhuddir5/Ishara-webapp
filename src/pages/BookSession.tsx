@@ -1,3 +1,19 @@
+/**
+ * Book Session Page Component
+ * 
+ * This page allows deaf/mute users to book interpretation sessions with interpreters.
+ * Users can choose between immediate sessions or scheduled sessions, search for available
+ * interpreters based on their availability, and request sessions.
+ * 
+ * Features:
+ * - Two booking modes: immediate or scheduled
+ * - Search for available interpreters based on time
+ * - View interpreter ratings
+ * - Request sessions with selected interpreters
+ * - Real-time availability checking
+ * - RTL support for Arabic
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box, Container, Button, Stack, TextField, Typography, Snackbar, Alert, Card, CardContent, CircularProgress } from "@mui/material";
 import { useI18n } from "../context/I18nContext";
@@ -11,23 +27,40 @@ import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
 import SearchIcon from "@mui/icons-material/Search";
 
+/**
+ * BookSession Component
+ * 
+ * Main component for booking interpretation sessions.
+ */
 function BookSession() {
+  // Get internationalization context
   const { t, direction } = useI18n();
+  
+  // Get authenticated user (deaf/mute)
   const { user } = useAuth();
   const isRTL = direction === "rtl";
-  const [mode, setMode] = useState<"immediate" | "scheduled">("immediate");
-  const [date, setDate] = useState<string>("");
-  const [time, setTime] = useState<string>("");
-  const [matchingInterpreters, setMatchingInterpreters] = useState<Array<{ id: string; full_name?: string; average_rating?: number }>>([]);
-  const [booking, setBooking] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [open, setOpen] = useState(false);
+  
+  // Component state
+  const [mode, setMode] = useState<"immediate" | "scheduled">("immediate"); // Booking mode selection
+  const [date, setDate] = useState<string>(""); // Selected date for scheduled sessions
+  const [time, setTime] = useState<string>(""); // Selected time for scheduled sessions
+  const [matchingInterpreters, setMatchingInterpreters] = useState<Array<{ id: string; full_name?: string; average_rating?: number }>>([]); // Available interpreters matching search
+  const [booking, setBooking] = useState(false); // Loading state when booking session
+  const [searching, setSearching] = useState(false); // Loading state when searching for interpreters
+  const [hasSearched, setHasSearched] = useState(false); // Track if search has been performed (for empty state)
+  const [message, setMessage] = useState<string>(""); // Success/error message
+  const [open, setOpen] = useState(false); // Controls snackbar visibility
 
-  // Removed unused useEffect for loading interpreters
-
-  // Helper to check if a given ISO date/time fits the interpreter's weekly config
+  /**
+   * Check if interpreter is available at a specific date/time
+   * 
+   * Validates if an interpreter's availability configuration matches the requested time.
+   * Checks for "always available" mode or matches day/shift availability.
+   * 
+   * @param cfg - Interpreter's availability configuration
+   * @param at - Date/time to check availability for
+   * @returns true if interpreter is available at the specified time, false otherwise
+   */
   const isAvailableAt = (cfg: { isAlwaysAvailable: boolean; days: Record<string, { morning: boolean; evening: boolean }> }, at: Date) => {
     if (cfg.isAlwaysAvailable) return true;
     const dayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
@@ -40,6 +73,19 @@ function BookSession() {
     return (dayCfg.morning && inMorning) || (dayCfg.evening && inEvening);
   };
 
+  /**
+   * Find matching interpreters based on availability
+   * 
+   * Searches all interpreters and filters those available at the requested time.
+   * For immediate mode, uses current time. For scheduled mode, uses selected date/time.
+   * 
+   * Process:
+   * 1. Validates date/time inputs
+   * 2. Queries all interpreters from Firestore
+   * 3. Checks each interpreter's availability configuration
+   * 4. Fetches user names for display
+   * 5. Returns list of available interpreters
+   */
   const findMatching = async () => {
     if (mode === "scheduled" && (!date || !time)) {
       setMessage(t("select_date_and_time_for_scheduled"));
@@ -99,6 +145,14 @@ function BookSession() {
     }
   };
 
+  /**
+   * Request a session with an interpreter
+   * 
+   * Creates a new session document in Firestore with status "requested".
+   * The interpreter will receive a notification and can accept/reject the request.
+   * 
+   * @param interpreterId - ID of the interpreter to book session with
+   */
   const requestSession = async (interpreterId: string) => {
     if (!user) {
       setMessage(t("please_login_to_book_session"));

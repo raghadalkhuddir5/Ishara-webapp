@@ -1,11 +1,37 @@
+/**
+ * Internationalization (i18n) Context
+ * 
+ * This context provides internationalization functionality throughout the application.
+ * It manages language preferences, translations, and text direction (LTR/RTL).
+ * 
+ * Features:
+ * - Supports English (en) and Arabic (ar) languages
+ * - Stores language preference in Firestore and localStorage
+ * - Provides translation function (t) for all UI text
+ * - Automatically sets document direction for RTL languages
+ * - Updates UI language immediately when changed
+ * 
+ * Translation Management:
+ * - All translations are stored in a translations object
+ * - Keys are consistent across languages
+ * - Missing translations fall back to English
+ */
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
 import { db } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 
+/**
+ * Locale Type
+ * Supported languages in the application
+ */
 type Locale = "en" | "ar";
 
-// Define translation structure
+/**
+ * Translations Interface
+ * Defines the structure of translation dictionaries
+ */
 interface Translations {
   [key: string]: string;
 }
@@ -584,57 +610,96 @@ const translations: Record<Locale, Translations> = {
   }
 };
 
+/**
+ * I18nValue Interface
+ * Defines the shape of the i18n context value
+ */
 interface I18nValue {
-  locale: Locale;
-  direction: "ltr" | "rtl";
-  t: (key: string) => string;
-  setLocale: (loc: Locale) => Promise<void> | void;
+  locale: Locale; // Current locale (en or ar)
+  direction: "ltr" | "rtl"; // Text direction based on locale
+  t: (key: string) => string; // Translation function
+  setLocale: (loc: Locale) => Promise<void> | void; // Function to change locale
 }
 
+/**
+ * Create I18n Context with default values
+ * Defaults to English (en) with LTR direction
+ */
 const I18nContext = createContext<I18nValue>({
   locale: "en",
   direction: "ltr",
   t: (key) => {
+    // Fallback translation function (returns English or key itself)
     return translations.en[key] || key;
   },
   setLocale: () => {}
 });
 
+/**
+ * I18nProvider Component
+ * 
+ * Wraps the application and provides internationalization functionality.
+ * Manages locale state, loads user preferences from Firestore, and provides
+ * translation functions to all child components.
+ */
 export function I18nProvider({ children }: { children: ReactNode }) {
+  // Get current authenticated user
   const { user } = useAuth();
+  
+  // Initialize locale state from localStorage or default to English
+  // This ensures language preference persists across page refreshes
   const [locale, setLocaleState] = useState<Locale>(() => {
     // Try to load from localStorage first, then default to 'en'
     const savedLocale = localStorage.getItem('app_locale') as Locale | null;
     return (savedLocale === 'ar' || savedLocale === 'en') ? savedLocale : 'en';
   });
 
+  /**
+   * useEffect: Load user's language preference from Firestore
+   * 
+   * When a user is logged in, this effect loads their saved language preference
+   * from Firestore. If no user is logged in, it uses the localStorage value.
+   */
   useEffect(() => {
     const load = async () => {
       if (!user) {
-        // If no user, use localStorage value
+        // If no user, use localStorage value (for public pages)
         const savedLocale = localStorage.getItem('app_locale') as Locale | null;
         if (savedLocale === 'ar' || savedLocale === 'en') {
           setLocaleState(savedLocale);
         }
         return;
       }
+      
+      // Load language preference from user's Firestore document
       const snap = await getDoc(doc(db, "users", user.uid));
       const lang = (snap.exists() ? (snap.data() as { language?: string }).language : undefined) as Locale | undefined;
+      
+      // Update locale if valid language preference found
       if (lang === "ar" || lang === "en") {
         setLocaleState(lang);
-        // Also save to localStorage
+        // Also save to localStorage for consistency
         localStorage.setItem('app_locale', lang);
       }
     };
     load();
   }, [user]);
 
+  /**
+   * setLocale Function
+   * 
+   * Changes the application locale and saves the preference.
+   * Updates localStorage immediately for instant UI update, then saves to Firestore.
+   * 
+   * @param loc - New locale to set (en or ar)
+   */
   const setLocale = async (loc: Locale) => {
+    // Update state immediately
     setLocaleState(loc);
     // Save to localStorage immediately for instant UI update
     localStorage.setItem('app_locale', loc);
     
-    // Also save to Firestore if user is logged in
+    // Also save to Firestore if user is logged in (for persistence across devices)
     if (user) {
       try {
         await updateDoc(doc(db, "users", user.uid), { language: loc });
@@ -644,13 +709,22 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Calculate text direction based on locale (Arabic is RTL, English is LTR)
   const direction = locale === "ar" ? "rtl" : "ltr";
+  
+  /**
+   * Memoized context value
+   * 
+   * Creates the context value object with locale, direction, translation function,
+   * and setLocale function. Memoized to prevent unnecessary re-renders.
+   */
   const value = useMemo<I18nValue>(() => {
     console.log('🌐 I18n context value updated, locale:', locale);
     return {
       locale,
       direction,
       t: (key) => {
+        // Get translation from current locale, fallback to English, then to key itself
         const message = translations[locale]?.[key] || translations.en?.[key];
         if (!message) {
           console.warn(`Translation key "${key}" not found for locale "${locale}"`);
@@ -662,6 +736,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     };
   }, [locale, direction]);
 
+  /**
+   * useEffect: Update HTML document attributes
+   * 
+   * Sets the lang and dir attributes on the HTML element to ensure proper
+   * rendering and accessibility for RTL languages.
+   */
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = direction;

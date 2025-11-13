@@ -1,3 +1,21 @@
+/**
+ * Landing Page Component
+ * 
+ * This is the public-facing homepage of the application. It includes:
+ * - Navigation header with language switcher
+ * - Hero section with call-to-action
+ * - About section explaining the platform
+ * - Services section highlighting features for both user types
+ * - Contact form section
+ * - Footer with social media links
+ * 
+ * Features:
+ * - Responsive design (mobile/desktop)
+ * - RTL support for Arabic
+ * - Mobile drawer navigation
+ * - Smooth scrolling to sections
+ */
+
 import { Box, Container, Typography, Button, AppBar, Toolbar, TextField, IconButton, Link, Drawer, List, ListItem, ListItemButton, useMediaQuery, useTheme } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";
@@ -18,21 +36,40 @@ import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { useState } from "react";
 
+/**
+ * Landing Page Component
+ * Main public homepage component
+ */
 const Landing = () => {
+  // Get internationalization context
   const { t, direction } = useI18n();
+  // Check if RTL layout is needed
   const isRTL = direction === "rtl";
+  // Get theme for responsive breakpoints
   const theme = useTheme();
+  // Check if device is mobile/tablet
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  // State for mobile drawer (hamburger menu)
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  /**
+   * Scroll to a specific section on the page smoothly
+   * Used for navigation links
+   * 
+   * @param sectionId - ID of the section element to scroll to
+   */
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
     }
+    // Close mobile drawer after navigation
     setMobileOpen(false);
   };
 
+  /**
+   * Toggle mobile drawer (hamburger menu) open/closed
+   */
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };

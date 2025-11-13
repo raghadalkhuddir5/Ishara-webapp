@@ -23,9 +23,9 @@ The main service that handles:
 ### 2. Call Service (`src/services/callService.ts`)
 
 Updated to work with PeerJS:
-- Stores peer IDs instead of Agora tokens
-- Manages call lifecycle in Firestore
-- Handles peer ID mapping between users
+- Manages call lifecycle in Firestore (call metadata, duration, quality metrics)
+- Tracks call records for sessions (separate from peer connection logic)
+- Note: Peer IDs are NOT stored in Firestore - they are derived deterministically from session ID and role
 
 ### 3. Video Call Component (`src/components/VideoCall.tsx`)
 
@@ -41,28 +41,52 @@ Completely rewritten to use PeerJS:
 
 1. **Session Confirmation**: When an interpreter accepts a session, the status is updated to "confirmed"
 
-2. **First Participant Joins**: 
-   - Deaf/mute user joins → Creates call document with their peer ID
-   - Interpreter joins → Updates call document with their peer ID
+2. **Peer ID Generation**: 
+   - Both participants derive peer IDs deterministically from session ID:
+     - Deaf/mute user: `${sessionId}-caller`
+     - Interpreter: `${sessionId}-callee`
+   - No Firestore storage needed for peer IDs (computed on-the-fly)
 
 3. **Call Initiation**:
-   - Deaf/mute user (caller) calls interpreter's peer ID
-   - Interpreter (callee) receives the call and answers automatically
+   - Deaf/mute user (caller) initializes PeerJS with their deterministic peer ID
+   - Interpreter (callee) initializes PeerJS with their deterministic peer ID
+   - Deaf/mute user calls interpreter's peer ID (`${sessionId}-callee`)
+   - Interpreter receives the call automatically via PeerJS listeners
 
 4. **Media Exchange**: WebRTC handles peer-to-peer media streaming
 
 ### Firestore Schema
 
+**Note**: Peer IDs are NOT stored in Firestore. They are computed deterministically:
+- Caller peer ID: `${sessionId}-caller`
+- Callee peer ID: `${sessionId}-callee`
+
+The actual `calls` collection stores call metadata:
+
 ```typescript
-interface PeerJSCallData {
-  sessionId: string;
-  callerUid: string;
-  calleeUid?: string;
-  callerPeerId: string;
-  calleePeerId?: string;
-  status: 'active' | 'ended' | 'expired';
-  createdAt: Date;
-  endedAt?: Date;
+interface CallData {
+  call_id?: string;              // Document ID
+  session_id: string;            // Reference to session
+  user_id: string;               // Deaf/mute user UID
+  interpreter_id: string;         // Interpreter UID
+  started_at: Timestamp;
+  ended_at?: Timestamp;
+  duration_seconds?: number;
+  status: 'active' | 'ended' | 'failed';
+  recording_url?: string;
+  recording_duration?: number;
+  call_quality: {
+    video_quality: 'poor' | 'fair' | 'good' | 'excellent';
+    audio_quality: 'poor' | 'fair' | 'good' | 'excellent';
+    connection_stability: 'poor' | 'fair' | 'good' | 'excellent';
+  };
+  technical_metrics?: {
+    avg_bitrate: number;
+    packet_loss: number;
+    jitter: number;
+    latency: number;
+  };
+  created_at: Timestamp;
 }
 ```
 
@@ -104,12 +128,14 @@ You can deploy your own PeerServer to:
 ## Migration from Agora
 
 ### What Changed
-- ❌ Removed Agora SDK dependency
-- ❌ Removed token generation logic
+- ❌ Removed Agora SDK dependency from main app (`package.json` - frontend)
+- ⚠️ **Note**: Agora token generation functions still exist in `functions/` directory (Cloud Functions) but are not used by the frontend
+- ❌ Removed token generation logic from frontend
 - ❌ Removed channel-based calling
-- ✅ Added PeerJS SDK
-- ✅ Added peer ID-based calling
-- ✅ Simplified signaling (no custom Firestore signaling)
+- ✅ Added PeerJS SDK (`peerjs: ^1.5.5` and `@types/peerjs: ^0.0.30`)
+- ✅ Added deterministic peer ID-based calling (computed from session ID)
+- ✅ Simplified signaling (no custom Firestore signaling - PeerJS handles it)
+- ✅ Peer IDs are computed, not stored in Firestore
 
 ### Benefits
 - **Simpler**: No token management
@@ -130,7 +156,9 @@ You can deploy your own PeerServer to:
    - Check browser permissions for camera/microphone
 
 3. **"Call failed"**
-   - Verify peer IDs are correctly stored in Firestore
+   - Verify both participants have initialized their PeerJS peers
+   - Check that peer IDs match the expected format (`${sessionId}-caller` or `${sessionId}-callee`)
+   - Ensure PeerJS server is accessible (PeerJS Cloud or custom server)
    - Check console for detailed error messages
 
 ### Debug Mode

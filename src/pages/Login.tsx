@@ -1,3 +1,17 @@
+/**
+ * Login Page Component
+ * 
+ * This component handles user authentication with two methods:
+ * 1. Email/Password authentication via Firebase Auth
+ * 2. Google Sign-In via Firebase Auth
+ * 
+ * Features:
+ * - Form validation and error handling
+ * - Loading states during authentication
+ * - RTL support for Arabic
+ * - Redirects to dashboard on successful login
+ */
+
 import { useState } from "react";
 import { 
   TextField, 
@@ -19,33 +33,49 @@ import { useNavigate, Link } from "react-router-dom";
 import { useI18n } from "../context/I18nContext";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 
+/**
+ * Login Component
+ * Handles user authentication
+ */
 function Login() {
+  // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(""); // Error message display
+  const [isLoading, setIsLoading] = useState(false); // Loading state during auth
+  
+  // Navigation and i18n
   const navigate = useNavigate();
   const { t, direction } = useI18n();
   const isRTL = direction === 'rtl';
 
+  /**
+   * Handle email/password login
+   * 
+   * Authenticates user with Firebase Auth and redirects to dashboard on success.
+   * Handles various Firebase Auth error codes with user-friendly messages.
+   */
   const handleLogin = async () => {
     try {
       setIsLoading(true);
       setError("");
       
-      // Log in with Firebase Auth
+      // Authenticate with Firebase Auth using email and password
       await signInWithEmailAndPassword(auth, email, password);
 
       console.log("✅ User logged in");
 
-      // Redirect to ProtectedRoute
+      // Redirect to dashboard on successful authentication
+      // ProtectedRoute will handle role-based routing
       navigate("/dashboard");
     } catch (error: unknown) {
       console.error("Login error:", error);
       
+      // Extract error message and code for specific error handling
       const errorMessage = error instanceof Error ? error.message : t("login_failed_generic");
       const errorCode = (error as { code?: string }).code;
       
+      // Handle specific Firebase Auth error codes with translated messages
       if (errorCode === 'auth/user-not-found') {
         setError(t("login_failed_user_not_found"));
       } else if (errorCode === 'auth/wrong-password') {
@@ -62,21 +92,29 @@ function Login() {
     }
   };
 
+  /**
+   * Handle Google Sign-In
+   * 
+   * Authenticates user with Google OAuth via Firebase Auth popup.
+   * Handles popup blocking and cancellation errors gracefully.
+   */
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
       setError("");
       
+      // Create Google Auth provider and trigger popup sign-in
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       
       console.log("✅ User logged in with Google:", result.user);
       
-      // Redirect to ProtectedRoute
+      // Redirect to dashboard on successful authentication
       navigate("/dashboard");
     } catch (error: unknown) {
       console.error("Google login error:", error);
       
+      // Handle Google-specific error codes
       const errorMessage = error instanceof Error ? error.message : t("google_login_failed");
       const errorCode = (error as { code?: string }).code;
       
