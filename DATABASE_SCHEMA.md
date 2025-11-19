@@ -69,14 +69,7 @@
   is_rated: boolean;               // Track if session was rated (default: false)
   rating_id?: string;             // Reference to rating document (optional)
   hidden?: boolean;                // Soft delete flag (default: false)
-  // Optional fields (not currently used but may be added):
-  // session_type?: "immediate" | "scheduled";
-  // language?: string;
-  // description?: string;
-  // started_at?: Timestamp;
-  // ended_at?: Timestamp;
-  // channel_name?: string;        // For video calls
-  // temp_token?: string;          // For video calls
+  
 }
 ```
 
